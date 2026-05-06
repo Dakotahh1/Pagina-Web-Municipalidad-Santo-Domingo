@@ -29,7 +29,7 @@ setupIonicReact();
 const App: React.FC = () => {
   // Simulador de autenticación para cumplir con EP 1.5
   // Más adelante esto vendrá de un estado o base de datos real.
-  const isAuth = false; 
+  const isAuth = true; 
 
   return (
     <IonApp>
