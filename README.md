@@ -66,16 +66,12 @@ A continuación se presentan ejemplos de las pantallas principales diseñadas pa
 ### Mapa de Navegación y Jerarquía
 La aplicación sigue una estructura jerárquica con rutas protegidas. 
 * **Rutas Públicas:** `/login`, `/registro`.
-* **Rutas Protegidas (Requieren autenticación):** `/inicio`, `/adopciones`, `/operativos`.
+* **Rutas Protegidas (Requieren autenticación):** Todas aquellas exceptuando 7login y registro.
 
-*![Mapa de Navegacion](./ruta-a-tu-imagen/mapa-navegacion.png)*
 
 ### Flujo de Tareas (Task Flow)
 Flujo de ejemplo para reportar un incidente:
 <img width="1497" height="712" alt="image" src="https://github.com/user-attachments/assets/1afae737-1df6-4d4e-a615-978d0cbe3383" />
-
-
-**Justificación Técnica:** Se opto por...
 
 ---
 
