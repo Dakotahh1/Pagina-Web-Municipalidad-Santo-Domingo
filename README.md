@@ -71,8 +71,9 @@ La aplicación sigue una estructura jerárquica con rutas protegidas.
 *![Mapa de Navegacion](./ruta-a-tu-imagen/mapa-navegacion.png)*
 
 ### Flujo de Tareas (Task Flow)
-Flujo principal para el reporte de un incidente:
-*![Diagrama DFD](./ruta-a-tu-imagen/dfd.png)*
+Flujo de ejemplo para reportar un incidente:
+<img width="1497" height="712" alt="image" src="https://github.com/user-attachments/assets/1afae737-1df6-4d4e-a615-978d0cbe3383" />
+
 
 **Justificación Técnica:** Se opto por...
 
