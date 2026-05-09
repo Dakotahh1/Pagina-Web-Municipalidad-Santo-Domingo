@@ -1,2 +1,17 @@
-/* For information on how to create your own theme, please refer to:
-http://ionicframework.com/docs/theming/ */
+@import "tailwindcss";
+
+@theme {
+  /* Colores */
+  --color-muni-blue: #2d6aab;
+  --color-muni-orange: #f5a623;
+  --color-muni-green: #4caf50;
+
+  /* Tipografías */
+  --font-sans: 'Inter', sans-serif;
+  --font-serif: 'Zilla Slab', serif;
+}
+
+
+body {
+  font-family: var(--font-sans);
+}
