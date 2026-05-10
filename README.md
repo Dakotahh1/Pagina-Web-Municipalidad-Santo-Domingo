@@ -93,7 +93,7 @@ A continuación se presentan las pantallas principales diseñadas para vista Web
 
 <!-- INSTRUCCIÓN: subir Arquitectura_UX_-_Bienestar_Animal.png a un Issue de GitHub,
      copiar el link generado y reemplazar la línea de abajo -->
-> 📎 Ver diagrama completo en Figma: [Arquitectura UX — Bienestar Animal](https://www.figma.com/board/cgeHwEwXP67bQdPYxucQKI/Arquitectura-UX---Bienestar-Animal?node-id=0-1&p=f&t=DJdrskBNUpx3DqUi-0)
+>  Ver diagrama completo en Figma: [Arquitectura UX — Bienestar Animal](https://www.figma.com/board/cgeHwEwXP67bQdPYxucQKI/Arquitectura-UX---Bienestar-Animal?node-id=0-1&p=f&t=DJdrskBNUpx3DqUi-0)
 
 ### Rutas del Sistema
 
@@ -230,10 +230,9 @@ flowchart TD
 
 | Nombre | Rol |
 |--------|-----|
-| Vicente Palma | Desarrollador Frontend |
-| Diego Alvarado | Documentación y Arquitectura |
-| Ignacia Brahim | Diseño UI/UX |
-| Ariel Villar | Desarrollador Frontend |
+| Vicente Palma | Desarrollador Frontend, Documentación |
+| Diego Alvarado | Aquitectura y Diseño UI/UX, Desarrollador Frontend |
+| Ignacia Brahim | Documentación, Aquitectura y Diseño UI/UX  |
 
 ---
 
