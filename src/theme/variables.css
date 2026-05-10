@@ -1,14 +1,18 @@
 @import "tailwindcss";
 
-@theme {
-  /* Colores */
-  --color-muni-blue: #2d6aab;
-  --color-muni-orange: #f5a623;
-  --color-muni-green: #4caf50;
 
-  /* Tipografías */
-  --font-sans: 'Inter', sans-serif;
+@theme {
+  /*colores */
+  --color-muni-blue:   #2d6aab;
+  --color-muni-orange: #f5a623;
+  --color-muni-green:  #4caf50;
+  --font-sans:  'Inter', sans-serif;
   --font-serif: 'Zilla Slab', serif;
+
+  /*typo*/
+  --font-slab:        'Roboto Slab', serif;
+  --font-display:     'Roboto Serif', serif;
+  --color-link-blue:  #1657AC;
 }
 
 

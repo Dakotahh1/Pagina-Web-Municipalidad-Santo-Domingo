@@ -1,275 +1,312 @@
-import React from 'react';
-import { 
-  IonPage, 
-  IonContent, 
-  IonButton, 
-  IonGrid, 
-  IonRow, 
-  IonCol, 
-  IonCard, 
-  IonCardContent,
-  IonHeader,
-  IonToolbar
+import React, { useState } from 'react';
+import {
+  IonPage, IonContent, IonButton,
+  IonGrid, IonRow, IonCol,
+  IonCard, IonCardContent, IonToast
 } from '@ionic/react';
 import { useHistory, useParams } from 'react-router-dom';
+import NavBar from '../../components/NavBar';
+import RevealWrapper from '../../components/RevealWrapper';
+
+/*página de detalle de un animal. muestra su foto, información básica, historial médico y notas.
+  el componente se llama AdopcionDetalle internamente, pero el archivo es FichaAnimal.tsx.
+  se puede renombrar cuando se limpie el proyecto.
+
+  recibe el id del animal por la url (/app/adopciones/:id) y busca al animal en la base de datos local.
+  cuando haya api real, esta búsqueda se reemplaza por un fetch o un useEffect con llamada al backend*/
 
 const AdopcionDetalle: React.FC = () => {
   const history = useHistory();
   const { id } = useParams<{ id: string }>();
+  const [showToast, setShowToast] = useState(false);
+  const [toastMsg, setToastMsg] = useState('');
+  const [selectedThumb, setSelectedThumb] = useState<number>(0); //índice de la miniatura seleccionada
 
-  // Base de datos simulada }
+  const mostrarToast = (msg: string) => { setToastMsg(msg); setShowToast(true); };
+
+  /*base de datos local de mascotas hardcodeada hasta conectar con el backend.
+    cada animal tiene: id, datos básicos, etiquetas, chip, imágenes, info detallada,
+    historial médico, notas y el inspector responsable*/
   const baseDatosMascotas = [
     {
       id: 1,
-      nombre: "Camaron",
-      tipo: "Gatos",
-      descripcionCorta: "Gato mestizo",
-      edad: "3 años",
-      sexo: "Macho",
-      etiquetas: ["Vacunado", "Castrado"],
-      chip: "ABCD-9999-0000-22222",
-      imagenPrincipal: "/assets/camaron.jpg",
-      miniaturas: ["/assets/gato2.jpg", "/assets/gato3.jpg"],
+      nombre: 'Camaron',
+      tipo: 'Gatos',
+      descripcionCorta: 'Gato mestizo',
+      edad: '3 años',
+      sexo: 'Macho',
+      etiquetas: ['Vacunado', 'Castrado'],
+      chip: 'ABCD-9999-0000-22222',
+      imagenPrincipal: '/assets/camaron.jpg',
+      miniaturas: ['/assets/gato2.jpg', '/assets/gato3.jpg'],
       infoDetallada: [
-        { clave: "Especie", valor: "Gato" },
-        { clave: "Raza", valor: "Naranjito" },
-        { clave: "Sexo", valor: "Macho" },
-        { clave: "Edad Estimada", valor: "3 años" },
-        { clave: "Tamaño", valor: "Mediano" },
-        { clave: "Color", valor: "Naranjo con blanco" },
-        { clave: "Zona de Rescate", valor: "De casa" },
+        { clave: 'Especie',         valor: 'Gato'               },
+        { clave: 'Raza',            valor: 'Naranjito'          },
+        { clave: 'Sexo',            valor: 'Macho'              },
+        { clave: 'Edad Estimada',   valor: '3 años'             },
+        { clave: 'Tamaño',          valor: 'Mediano'            },
+        { clave: 'Color',           valor: 'Naranjo con blanco' },
+        { clave: 'Zona de Rescate', valor: 'De casa'            },
       ],
       historial: [
-        { fecha: "15 enero 2025", evento: "Control veterinario rutinario. Estado general bueno. Sin novedades." },
-        { fecha: "03 noviembre 2024", evento: "Operativo de esterilización – Sector norte. Castración realizada exitosamente." },
+        { fecha: '15 enero 2025',    evento: 'Control veterinario rutinario. Estado general bueno. Sin novedades.' },
+        { fecha: '03 noviembre 2024', evento: 'Operativo de esterilización – Sector norte. Castración realizada exitosamente.' },
       ],
-      notas: "Camaron es un gatito lindo que come mucho y no sabe cuando parar de comer.",
-      inspector: "Vicente Palma"
+      notas: 'Camaron es un gatito lindo que come mucho y no sabe cuando parar de comer.',
+      inspector: 'Vicente Palma',
     },
     {
       id: 2,
-      nombre: "Kenai",
-      tipo: "Perros",
-      descripcionCorta: "Perro mestizo",
-      edad: "3 años",
-      sexo: "Macho",
-      etiquetas: ["Vacunado", "Castrado"],
-      chip: "KEN-8888-1111-33333",
-      imagenPrincipal: "/assets/kenai.jpg",
-      miniaturas: ["/assets/kenai_thumb1.jpg", "/assets/kenai_thumb2.jpg"],
+      nombre: 'Kenai',
+      tipo: 'Perros',
+      descripcionCorta: 'Perro mestizo',
+      edad: '3 años',
+      sexo: 'Macho',
+      etiquetas: ['Vacunado', 'Castrado'],
+      chip: 'KEN-8888-1111-33333',
+      imagenPrincipal: '/assets/kenai.jpg',
+      miniaturas: ['/assets/kenai_thumb1.jpg', '/assets/kenai_thumb2.jpg'],
       infoDetallada: [
-        { clave: "Especie", valor: "Perro" },
-        { clave: "Raza", valor: "Mestizo" },
-        { clave: "Sexo", valor: "Macho" },
-        { clave: "Edad Estimada", valor: "3 años" },
-        { clave: "Tamaño", valor: "Grande" },
-        { clave: "Color", valor: "Blanco" },
-        { clave: "Zona de Rescate", valor: "Sector Centro" },
+        { clave: 'Especie',         valor: 'Perro'          },
+        { clave: 'Raza',            valor: 'Mestizo'        },
+        { clave: 'Sexo',            valor: 'Macho'          },
+        { clave: 'Edad Estimada',   valor: '3 años'         },
+        { clave: 'Tamaño',          valor: 'Grande'         },
+        { clave: 'Color',           valor: 'Blanco'         },
+        { clave: 'Zona de Rescate', valor: 'Sector Centro'  },
       ],
       historial: [
-        { fecha: "10 enero 2025", evento: "Vacunación séxtuple aplicada." },
+        { fecha: '10 enero 2025', evento: 'Vacunación séxtuple aplicada.' },
       ],
-      notas: "Kenai es muy juguetón y requiere espacio para correr.",
-      inspector: "Andrea Silva"
+      notas: 'Kenai es muy juguetón y requiere espacio para correr.',
+      inspector: 'Andrea Silva',
     },
     {
       id: 3,
-      nombre: "Leonidas",
-      tipo: "Perros",
-      descripcionCorta: "Perro mestizo",
-      edad: "3 años",
-      sexo: "Macho",
-      etiquetas: ["Vacunado", "Castrado"],
-      chip: "LEO-7777-2222-44444",
-      imagenPrincipal: "/assets/leonidas.jpg",
-      miniaturas: ["/assets/leonidas_thumb1.jpg", "/assets/leonidas_thumb2.jpg"],
+      nombre: 'Leonidas',
+      tipo: 'Perros',
+      descripcionCorta: 'Perro mestizo',
+      edad: '3 años',
+      sexo: 'Macho',
+      etiquetas: ['Vacunado', 'Castrado'],
+      chip: 'LEO-7777-2222-44444',
+      imagenPrincipal: '/assets/leonidas.jpg',
+      miniaturas: ['/assets/leonidas_thumb1.jpg', '/assets/leonidas_thumb2.jpg'],
       infoDetallada: [
-        { clave: "Especie", valor: "Perro" },
-        { clave: "Raza", valor: "Mestizo" },
-        { clave: "Sexo", valor: "Macho" },
-        { clave: "Edad Estimada", valor: "3 años" },
-        { clave: "Tamaño", valor: "Mediano" },
-        { clave: "Color", valor: "Negro" },
-        { clave: "Zona de Rescate", valor: "Sector Sur" },
+        { clave: 'Especie',         valor: 'Perro'       },
+        { clave: 'Raza',            valor: 'Mestizo'     },
+        { clave: 'Sexo',            valor: 'Macho'       },
+        { clave: 'Edad Estimada',   valor: '3 años'      },
+        { clave: 'Tamaño',          valor: 'Mediano'     },
+        { clave: 'Color',           valor: 'Negro'       },
+        { clave: 'Zona de Rescate', valor: 'Sector Sur'  },
       ],
       historial: [
-        { fecha: "05 febrero 2025", evento: "Ingreso y revisión general." },
+        { fecha: '05 febrero 2025', evento: 'Ingreso y revisión general.' },
       ],
-      notas: "Un perro muy leal y protector.",
-      inspector: "Carlos Pérez"
+      notas: 'Un perro muy leal y protector.',
+      inspector: 'Carlos Pérez',
     },
-    // Añadir el resto de animales
   ];
 
-  // Buscamos el animal por ID. Si alguien entra a una ruta que no existe, mostramos Camaron (1) por defecto para no romper la app.
+  /*si la id de la url no corresponde a ningún animal, se muestra el primero por defecto.
+    esto evita que la app explote si alguien entra a una ruta que no existe*/
   const mascotaId = id ? parseInt(id, 10) : 1;
   const mascota = baseDatosMascotas.find(m => m.id === mascotaId) || baseDatosMascotas[0];
 
-  const navButtonStyle = {
-    '--background': '#ffffff',
-    '--color': '#000000',
-    '--border-radius': '6px',
-    '--box-shadow': '0 2px 4px rgba(0,0,0,0.05)',
-    '--border-color': '#e5e7eb',
-    '--border-style': 'solid',
-    '--border-width': '1px',
-    fontFamily: "'Inter', sans-serif",
-    fontWeight: 500,
-    fontSize: '14px',
-    textTransform: 'none' as const,
-    margin: '0 4px',
-    height: '42px'
-  };
-
-  const activeNavButtonStyle = {
-    ...navButtonStyle,
-    '--background': '#000000',
-    '--color': '#ffffff',
-    '--border-color': '#000000',
+  //copia el link de la ficha al portapapeles y avisa al usuario
+  const handleCompartir = () => {
+    navigator.clipboard.writeText(window.location.href)
+      .then(() => mostrarToast('enlace de la ficha copiado al portapapeles'))
+      .catch(() => mostrarToast('no se pudo copiar el enlace, intenta de nuevo'));
   };
 
   return (
     <IonPage>
-      <IonHeader className="ion-no-border shadow-none border-b border-gray-300">
-        <IonToolbar style={{ '--background': '#ffffff', '--padding-top': '12px', '--padding-bottom': '12px', '--padding-start': '2rem', '--padding-end': '2rem' }}>
-          <div className="flex flex-col xl:flex-row justify-between items-center w-full gap-4 xl:gap-0">
-            <div className="flex items-center gap-4 shrink-0 cursor-pointer" onClick={() => history.push('/app/inicio')}>
-              <div className="w-12 h-12 bg-[#7ac29a] flex items-center justify-center overflow-hidden rounded">
-                <img src="/assets/logo.png" alt="Logo" className="w-8 h-8 object-contain" onError={(e) => { e.currentTarget.style.display = 'none' }} />
-              </div>
-              <div className="flex flex-col justify-center">
-                <h2 style={{ fontFamily: "Inter", fontWeight: 800, fontSize: '16px', color: '#000000', margin: '0 0 2px 0' }}>Bienestar Animal</h2>
-                <p style={{ fontFamily: "Inter", fontWeight: 400, fontSize: '14px', color: '#000000', margin: 0 }}>Municipalidad de Santo Domingo</p>
-              </div>
-            </div>
 
-            <div className="flex flex-wrap justify-center items-center">
-              <IonButton fill="solid" routerLink="/app/inicio" style={navButtonStyle}>Inicio</IonButton>
-              <IonButton fill="solid" style={navButtonStyle}>Mapa</IonButton>
-              <IonButton fill="solid" routerLink="/app/adopciones" style={activeNavButtonStyle}>Adopciones</IonButton>
-              <IonButton fill="solid" routerLink="/app/foro" style={navButtonStyle}>Foro</IonButton>
-              <IonButton fill="solid" routerLink="/app/operativos" style={navButtonStyle}>Operativos</IonButton>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <IonButton style={{ '--background': '#000000', '--color': '#ffffff', '--border-radius': '6px', fontFamily: "'Inter', sans-serif", fontWeight: 500, fontSize: '14px', textTransform: 'none', height: '42px', '--padding-start': '20px', '--padding-end': '20px' }}>
-                Mi Cuenta
-              </IonButton>
-            </div>
-          </div>
-        </IonToolbar>
-      </IonHeader>
+      {/*barra de navegación institucional*/}
+      <NavBar />
 
       <IonContent fullscreen style={{ '--background': '#d1d5db' }}>
+
+        {/*breadcrumb de navegación: adopciones > tipo > nombre del animal*/}
         <div style={{ backgroundColor: '#e5e7eb', padding: '12px 32px', borderBottom: '1px solid #9ca3af' }}>
-          <p style={{ fontFamily: "'Roboto Slab', serif", fontWeight: 600, fontSize: '12px', color: '#111827', margin: 0 }}>
-            <span className="cursor-pointer hover:underline" onClick={() => history.push('/app/adopciones')}>Adopciones</span> &gt; {mascota.tipo} &gt; "{mascota.nombre}"
+          <p className="font-slab font-semibold text-xs text-gray-900 m-0">
+            <span className="cursor-pointer hover:underline" onClick={() => history.push('/app/adopciones')}>
+              Adopciones
+            </span>
+            {' › '}{mascota.tipo}{' › '}"{mascota.nombre}"
           </p>
         </div>
 
         <div className="p-8">
           <IonGrid className="ion-no-padding max-w-[1200px] mx-auto">
             <IonRow>
-              {/* COLUMNA IZQUIERDA */}
+
+              {/*columna izquierda: foto principal, datos básicos y botones de acción*/}
               <IonCol size="12" sizeLg="5" className="p-3">
-                <IonCard className="m-0 shadow-sm" style={{ '--background': '#ffffff', '--border-radius': '8px' }}>
-                  <IonCardContent className="p-6">
-                    <div className="w-full h-[240px] bg-gray-200 rounded-lg mb-6 overflow-hidden">
-                      <img src={mascota.imagenPrincipal} alt={mascota.nombre} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none' }} />
-                    </div>
+                <RevealWrapper>
+                  <IonCard className="m-0 shadow-sm" style={{ '--background': '#ffffff', '--border-radius': '8px' }}>
+                    <IonCardContent className="p-6">
 
-                    <h1 style={{ fontFamily: "'Roboto Serif', serif", fontWeight: 700, fontSize: '32px', color: '#000000', marginBottom: '8px', lineHeight: '1.2' }}>
-                      "{mascota.nombre}"
-                    </h1>
-                    
-                    <div className="flex gap-4 mb-4">
-                      <span style={{ fontFamily: "'Roboto Slab', serif", fontWeight: 400, fontSize: '14px', color: '#4b5563' }}>{mascota.descripcionCorta}</span>
-                      <span style={{ fontFamily: "'Roboto Slab', serif", fontWeight: 400, fontSize: '14px', color: '#4b5563' }}>{mascota.edad}</span>
-                      <span style={{ fontFamily: "'Roboto Slab', serif", fontWeight: 400, fontSize: '14px', color: '#4b5563' }}>{mascota.sexo}</span>
-                    </div>
+                      {/*imagen principal del animal. loading=lazy para no bloquear el render inicial*/}
+                      <div className="w-full h-[240px] bg-gray-200 rounded-lg mb-6 overflow-hidden">
+                        <img
+                          src={selectedThumb > 0 ? mascota.miniaturas[selectedThumb - 1] : mascota.imagenPrincipal}
+                          alt={mascota.nombre}
+                          loading="lazy"
+                          className="w-full h-full object-cover transition-opacity duration-300"
+                          onError={e => { e.currentTarget.style.display = 'none'; }}
+                        />
+                      </div>
 
-                    <div className="flex gap-2 mb-6">
-                      {mascota.etiquetas.map((etiqueta, i) => (
-                        <span key={i} style={{ backgroundColor: '#e5e7eb', color: '#374151', fontSize: '12px', padding: '6px 16px', borderRadius: '16px', fontFamily: "'Roboto Slab', serif", fontWeight: 500 }}>
-                          {etiqueta}
-                        </span>
-                      ))}
-                    </div>
+                      <h1 style={{ fontFamily: "'Roboto Serif', serif", fontWeight: 700, fontSize: '32px', color: '#000000', marginBottom: '8px', lineHeight: '1.2' }}>
+                        "{mascota.nombre}"
+                      </h1>
 
-                    <div style={{ backgroundColor: '#d1d5db', padding: '12px 16px', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                      <span style={{ fontFamily: "'Roboto Slab', serif", fontWeight: 500, fontSize: '12px', color: '#374151' }}>Chip Registrado:</span>
-                      <span style={{ fontFamily: "'Roboto Slab', serif", fontWeight: 400, fontSize: '12px', color: '#374151' }}>{mascota.chip}</span>
-                    </div>
+                      {/*datos básicos del animal en línea*/}
+                      <div className="flex gap-4 mb-4">
+                        {[mascota.descripcionCorta, mascota.edad, mascota.sexo].map((dato, i) => (
+                          <span key={i} className="font-slab text-sm text-gray-600">{dato}</span>
+                        ))}
+                      </div>
 
-                    <IonButton expand="block" style={{ '--background': '#000000', '--color': '#ffffff', '--border-radius': '6px', height: '48px', fontFamily: "'Inter', sans-serif", fontWeight: 500, fontSize: '16px', textTransform: 'none', marginBottom: '12px' }}>
-                      Solicitar Adopción
-                    </IonButton>
-                    <IonButton expand="block" style={{ '--background': '#000000', '--color': '#ffffff', '--border-radius': '6px', height: '48px', fontFamily: "'Inter', sans-serif", fontWeight: 500, fontSize: '16px', textTransform: 'none', marginBottom: '24px' }}>
-                      Compartir Ficha
-                    </IonButton>
+                      {/*etiquetas de estado (vacunado, castrado, etc.)*/}
+                      <div className="flex gap-2 mb-6">
+                        {mascota.etiquetas.map((etiqueta, i) => (
+                          <span key={i} style={{ backgroundColor: '#e5e7eb', color: '#374151', fontSize: '12px', padding: '6px 16px', borderRadius: '16px', fontFamily: "'Roboto Slab', serif", fontWeight: 500 }}>
+                            {etiqueta}
+                          </span>
+                        ))}
+                      </div>
 
-                    <div className="flex gap-4">
-                      {mascota.miniaturas.map((thumb, i) => (
-                        <div key={i} className="w-[100px] h-[100px] bg-gray-200 rounded-lg overflow-hidden">
-                           <img src={thumb} alt={`Miniatura ${i}`} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none' }} />
-                        </div>
-                      ))}
-                    </div>
-                  </IonCardContent>
-                </IonCard>
+                      {/*chip del animal registrado en el sistema municipal*/}
+                      <div style={{ backgroundColor: '#d1d5db', padding: '12px 16px', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                        <span className="font-slab font-medium text-xs text-gray-700">Chip Registrado:</span>
+                        <span className="font-slab text-xs text-gray-700">{mascota.chip}</span>
+                      </div>
+
+                      {/*botón de solicitud que envía la solicitud y notifica al usuario*/}
+                      <IonButton
+                        expand="block"
+                        onClick={() => mostrarToast(`solicitud de adopción para ${mascota.nombre} enviada. pronto recibirás una respuesta`)}
+                        style={{ '--background': '#000000', '--color': '#ffffff', '--border-radius': '6px', height: '48px', fontFamily: "'Inter', sans-serif", fontWeight: 500, fontSize: '16px', textTransform: 'none', marginBottom: '12px' }}
+                      >
+                        Solicitar Adopción
+                      </IonButton>
+
+                      {/*botón de compartir que copia el link de la ficha al portapapeles*/}
+                      <IonButton
+                        expand="block"
+                        onClick={handleCompartir}
+                        style={{ '--background': '#000000', '--color': '#ffffff', '--border-radius': '6px', height: '48px', fontFamily: "'Inter', sans-serif", fontWeight: 500, fontSize: '16px', textTransform: 'none', marginBottom: '24px' }}
+                      >
+                        Compartir Ficha
+                      </IonButton>
+
+                      {/*miniaturas de fotos adicionales. al hacer click cambian la imagen principal*/}
+                      <div className="flex gap-4">
+                        {[mascota.imagenPrincipal, ...mascota.miniaturas].map((src, i) => (
+                          <div
+                            key={i}
+                            onClick={() => setSelectedThumb(i)}
+                            className={`w-[80px] h-[80px] bg-gray-200 rounded-lg overflow-hidden cursor-pointer
+                                        transition-all duration-200 hover:scale-105
+                                        ${selectedThumb === i ? 'ring-2 ring-muni-blue' : 'ring-1 ring-transparent'}`}
+                          >
+                            <img
+                              src={src}
+                              alt={`foto ${i + 1}`}
+                              loading="lazy"
+                              className="w-full h-full object-cover"
+                              onError={e => { e.currentTarget.style.display = 'none'; }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+
+                    </IonCardContent>
+                  </IonCard>
+                </RevealWrapper>
               </IonCol>
 
-              {/* COLUMNA DERECHA */}
+              {/*columna derecha: información detallada, historial médico y notas del inspector*/}
               <IonCol size="12" sizeLg="7" className="p-3 flex flex-col gap-6">
-                
-                <IonCard className="m-0 shadow-sm" style={{ '--background': '#ffffff', '--border-radius': '8px' }}>
-                  <IonCardContent className="p-8">
-                    <h2 style={{ fontFamily: "'Roboto Serif', serif", fontWeight: 700, fontSize: '20px', color: '#000000', marginBottom: '24px' }}>Información del Animal</h2>
-                    <div className="flex flex-col gap-4">
-                      {mascota.infoDetallada.map((item, index) => (
-                        <div key={index} className="flex justify-between items-center border-b border-gray-300 pb-3 last:border-0 last:pb-0">
-                          <span style={{ fontFamily: "'Roboto Slab', serif", fontWeight: 400, fontSize: '14px', color: '#6b7280' }}>{item.clave}</span>
-                          <span style={{ fontFamily: "'Roboto Slab', serif", fontWeight: 700, fontSize: '14px', color: '#000000' }}>{item.valor}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </IonCardContent>
-                </IonCard>
 
-                <IonCard className="m-0 shadow-sm" style={{ '--background': '#ffffff', '--border-radius': '8px' }}>
-                  <IonCardContent className="p-8">
-                    <h2 style={{ fontFamily: "'Roboto Serif', serif", fontWeight: 700, fontSize: '20px', color: '#000000', marginBottom: '24px' }}>Historial Médico</h2>
-                    <div className="flex flex-col gap-6">
-                      {mascota.historial.map((item, index) => (
-                        <div key={index} className="flex flex-col gap-1">
-                          <span style={{ fontFamily: "'Roboto Slab', serif", fontWeight: 700, fontSize: '14px', color: '#4b5563' }}>{item.fecha}</span>
-                          <span style={{ fontFamily: "'Roboto Slab', serif", fontWeight: 400, fontSize: '14px', color: '#111827', lineHeight: '1.5' }}>{item.evento}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </IonCardContent>
-                </IonCard>
-
-                <IonCard className="m-0 shadow-sm" style={{ '--background': '#ffffff', '--border-radius': '8px' }}>
-                  <IonCardContent className="p-8">
-                    <h2 style={{ fontFamily: "'Roboto Serif', serif", fontWeight: 700, fontSize: '20px', color: '#000000', marginBottom: '16px' }}>Notas</h2>
-                    <p style={{ fontFamily: "'Roboto Slab', serif", fontWeight: 400, fontSize: '14px', color: '#374151', lineHeight: '1.5', marginBottom: '24px' }}>{mascota.notas}</p>
-                    
-                    <div className="flex items-center gap-3">
-                      <div style={{ backgroundColor: '#d1d5db', padding: '6px 12px', borderRadius: '4px' }}>
-                        <span style={{ fontFamily: "'Roboto Slab', serif", fontWeight: 500, fontSize: '12px', color: '#4b5563' }}>Foto</span>
+                {/*tabla de información del animal*/}
+                <RevealWrapper delay={100}>
+                  <IonCard className="m-0 shadow-sm" style={{ '--background': '#ffffff', '--border-radius': '8px' }}>
+                    <IonCardContent className="p-8">
+                      <h2 style={{ fontFamily: "'Roboto Serif', serif", fontWeight: 700, fontSize: '20px', color: '#000000', marginBottom: '24px' }}>
+                        Información del Animal
+                      </h2>
+                      <div className="flex flex-col gap-4">
+                        {mascota.infoDetallada.map((item, index) => (
+                          <div key={index} className="flex justify-between items-center border-b border-gray-300 pb-3 last:border-0 last:pb-0">
+                            <span className="font-slab text-sm text-gray-500">{item.clave}</span>
+                            <span className="font-slab font-bold text-sm text-black">{item.valor}</span>
+                          </div>
+                        ))}
                       </div>
-                      <span style={{ fontFamily: "'Roboto Slab', serif", fontWeight: 700, fontSize: '14px', color: '#000000' }}>
-                        Inspector {mascota.inspector}
-                      </span>
-                    </div>
-                  </IonCardContent>
-                </IonCard>
+                    </IonCardContent>
+                  </IonCard>
+                </RevealWrapper>
+
+                {/*historial de eventos médicos y veterinarios del animal*/}
+                <RevealWrapper delay={200}>
+                  <IonCard className="m-0 shadow-sm" style={{ '--background': '#ffffff', '--border-radius': '8px' }}>
+                    <IonCardContent className="p-8">
+                      <h2 style={{ fontFamily: "'Roboto Serif', serif", fontWeight: 700, fontSize: '20px', color: '#000000', marginBottom: '24px' }}>
+                        Historial Médico
+                      </h2>
+                      <div className="flex flex-col gap-6">
+                        {mascota.historial.map((item, index) => (
+                          <div key={index} className="flex flex-col gap-1">
+                            <span className="font-slab font-bold text-sm text-gray-600">{item.fecha}</span>
+                            <span className="font-slab text-sm text-gray-900 leading-relaxed">{item.evento}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </IonCardContent>
+                  </IonCard>
+                </RevealWrapper>
+
+                {/*notas del inspector responsable del animal*/}
+                <RevealWrapper delay={300}>
+                  <IonCard className="m-0 shadow-sm" style={{ '--background': '#ffffff', '--border-radius': '8px' }}>
+                    <IonCardContent className="p-8">
+                      <h2 style={{ fontFamily: "'Roboto Serif', serif", fontWeight: 700, fontSize: '20px', color: '#000000', marginBottom: '16px' }}>
+                        Notas
+                      </h2>
+                      <p className="font-slab text-sm text-gray-700 leading-relaxed mb-6">{mascota.notas}</p>
+
+                      <div className="flex items-center gap-3">
+                        <div style={{ backgroundColor: '#d1d5db', padding: '6px 12px', borderRadius: '4px' }}>
+                          <span className="font-slab font-medium text-xs text-gray-600">Foto</span>
+                        </div>
+                        <span className="font-slab font-bold text-sm text-black">
+                          Inspector {mascota.inspector}
+                        </span>
+                      </div>
+                    </IonCardContent>
+                  </IonCard>
+                </RevealWrapper>
 
               </IonCol>
             </IonRow>
           </IonGrid>
         </div>
+
+        {/*toast para confirmaciones de adopción y compartir*/}
+        <IonToast
+          isOpen={showToast}
+          onDidDismiss={() => setShowToast(false)}
+          message={toastMsg}
+          duration={3500}
+          position="bottom"
+          color="success"
+        />
+
       </IonContent>
     </IonPage>
   );
