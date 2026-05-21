@@ -1,4 +1,8 @@
-//Ionic CSS para todos los auth forms. Se puede referenciar directo.
+import React from 'react';
+
+/*estilos compartidos para los formularios de autenticación.
+  centralizados aquí para mantener consistencia entre Login y Registro*/
+
 export const authInputStyle = {
   '--background':    '#f3f4f6',
   '--padding-start': '16px',

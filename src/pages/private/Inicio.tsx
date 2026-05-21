@@ -7,6 +7,7 @@ import {
 } from '@ionic/react';
 import { useHistory } from 'react-router-dom';
 import RevealWrapper from '../../components/RevealWrapper';
+import { useAuth } from '../../context/useAuth';
 
 /*página de inicio (landing page pública). es la primera pantalla que ve un vecino
   antes de iniciar sesión. tiene navbar azul propia con botones de auth.
@@ -23,6 +24,12 @@ import RevealWrapper from '../../components/RevealWrapper';
 
 const Inicio: React.FC = () => {
   const history = useHistory();
+  const { logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    history.push('/login');
+  };
 
   /*animales que se muestran en la sección de adopciones del inicio.
     son solo 3 destacados. la lista completa está en /app/adopciones*/
@@ -45,21 +52,20 @@ const Inicio: React.FC = () => {
     TODO: las descripciones aún tienen texto placeholder; actualizar con el texto real de cada sección*/
   const accesosRapidos = [
     { titulo: 'Dar en Adopción',    desc: 'Registra a tu mascota para que pueda encontrar un nuevo hogar.', ruta: '/app/adopciones' },
-    { titulo: 'Ver Estadísticas',   desc: 'Revisa el resumen de actividad y los datos de bienestar animal.', ruta: '/admin/dashboard' },
+    { titulo: 'Mapa de Reportes',   desc: 'Revisa el mapa de calor de incidentes reportados en la comuna.', ruta: '/app/mapa'       },
     { titulo: 'Reportar Incidente', desc: 'Informa a la municipalidad sobre animales en situación de riesgo.', ruta: '/app/reportar'   },
     { titulo: 'Foro Vecinal',       desc: 'Comunícate con otros vecinos y con el equipo municipal.', ruta: '/app/foro'        },
-    { titulo: 'Parque Animal',      desc: 'Información sobre el recinto municipal de bienestar animal.', ruta: '#'               },
-    { titulo: 'Directorio',         desc: 'Contactos y horarios de atención de la unidad de bienestar.', ruta: '#'               },
+    { titulo: 'Operativos',         desc: 'Consulta los próximos operativos de vacunación y esterilización.', ruta: '/app/operativos' },
+    { titulo: 'Directorio',         desc: 'Contactos y horarios de atención de la unidad de bienestar.', ruta: '/app/directorio'  },
   ];
 
   //estilo base de los botones de navegación del header azul público
   const navButtonStyle = {
     '--background': '#255c99', '--color': '#ffffff', '--border-radius': '6px',
     '--box-shadow': 'none', fontFamily: "'Inter', sans-serif",
-    fontWeight: 500, fontSize: '16px', textTransform: 'none' as const,
-    margin: '0 4px', height: '42px'
+    fontWeight: 500, fontSize: '14px', textTransform: 'none' as const,
+    margin: '0 3px', height: '38px'
   };
-
   return (
     <IonPage>
 
@@ -73,9 +79,7 @@ const Inicio: React.FC = () => {
 
             {/*logo y nombre de la plataforma*/}
             <div className="flex items-center gap-4 shrink-0">
-              <div className="w-12 h-12 bg-[#7ac29a] flex items-center justify-center overflow-hidden rounded">
-                <img src="/assets/logo.png" alt="Logo" loading="lazy" className="w-8 h-8 object-contain" onError={e => { e.currentTarget.style.display = 'none'; }} />
-              </div>
+              <img src="/assets/logo.png" alt="Logo" loading="lazy" className="w-14 h-14 object-contain" onError={e => { e.currentTarget.style.display = 'none'; }} />
               <div className="flex flex-col justify-center">
                 <h2 style={{ fontFamily: 'Inter', fontWeight: 800, fontSize: '16px', color: '#FFFFFF', margin: '0 0 2px 0' }}>Bienestar Animal</h2>
                 <p style={{ fontFamily: 'Inter', fontWeight: 400, fontSize: '14px', color: '#FFFFFF', margin: 0 }}>Municipalidad de Santo Domingo</p>
@@ -85,21 +89,18 @@ const Inicio: React.FC = () => {
             {/*links de sección. "inicio" activo porque estamos en esta página*/}
             <div className="flex flex-wrap justify-center items-center">
               <IonButton fill="solid" onClick={() => history.push('/app/inicio')}     style={navButtonStyle}>Inicio</IonButton>
-              <IonButton fill="solid"                                                  style={navButtonStyle}>Mapa de Reportes</IonButton>
+              <IonButton fill="solid" onClick={() => history.push('/app/mapa')}       style={navButtonStyle}>Mapa de Reportes</IonButton>
               <IonButton fill="solid" onClick={() => history.push('/app/adopciones')} style={navButtonStyle}>Adopciones</IonButton>
               <IonButton fill="solid" onClick={() => history.push('/app/foro')}       style={navButtonStyle}>Foro Vecinal</IonButton>
               <IonButton fill="solid" onClick={() => history.push('/app/operativos')} style={navButtonStyle}>Operativos</IonButton>
+              <IonButton fill="solid" onClick={() => history.push('/app/directorio')} style={navButtonStyle}>Directorio</IonButton>
             </div>
 
-            {/*botones de autenticación para vecinos sin sesión iniciada*/}
+            {/*botón de cierre de sesión para usuario autenticado*/}
             <div className="flex items-center gap-3">
-              <IonButton onClick={() => history.push('/registro')}
+              <IonButton onClick={handleLogout}
                 style={{ '--background': '#000000', '--color': '#ffffff', '--border-radius': '6px', fontFamily: "'Inter', sans-serif", fontWeight: 500, fontSize: '16px', textTransform: 'none', height: '42px', '--padding-start': '20px', '--padding-end': '20px' }}>
-                Registrarse
-              </IonButton>
-              <IonButton onClick={() => history.push('/login')}
-                style={{ '--background': '#000000', '--color': '#ffffff', '--border-radius': '6px', fontFamily: "'Inter', sans-serif", fontWeight: 500, fontSize: '16px', textTransform: 'none', height: '42px', '--padding-start': '20px', '--padding-end': '20px' }}>
-                Iniciar Sesión
+                Cerrar Sesión
               </IonButton>
             </div>
 

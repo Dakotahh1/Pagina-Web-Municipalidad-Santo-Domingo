@@ -1,9 +1,7 @@
 import React, { useState, useRef } from 'react';
 import {
-  IonPage, IonContent,
-  IonHeader, IonToolbar, IonToast
+  IonPage, IonContent, IonToast
 } from '@ionic/react';
-import { useHistory } from 'react-router-dom';
 import NavBar from '../../components/NavBar';
 import RevealWrapper from '../../components/RevealWrapper';
 
@@ -21,7 +19,6 @@ import RevealWrapper from '../../components/RevealWrapper';
     - columna derecha: tiempo de respuesta + qué pasa después + emergencia*/
 
 const ReportarIncidente: React.FC = () => {
-  const history = useHistory();
 
   //tipo de incidente seleccionado (requerido para enviar)
   const [tipoIncidente, setTipoIncidente] = useState<string>('Abandono de animal');

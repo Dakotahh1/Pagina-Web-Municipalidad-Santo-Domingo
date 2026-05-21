@@ -40,7 +40,7 @@ const Foro: React.FC = () => {
   };
 
   //notifica al usuario que el reporte fue recibido por la municipalidad
-  const handleReportar = (postId: number) => {
+  const handleReportar = () => {
     mostrarToast('tu reporte fue enviado. el personal municipal lo revisará en 24-48 hrs');
   };
 
@@ -255,7 +255,7 @@ const Foro: React.FC = () => {
                             {post.mostrarBotonReportar && (
                               <div className="flex flex-col items-end gap-1">
                                 <IonButton
-                                  onClick={() => handleReportar(post.id)}
+                                  onClick={() => handleReportar()}
                                   style={{ '--background': '#B01717', '--color': '#ffffff', '--border-radius': '6px', height: '32px', fontFamily: 'Roboto Slab', fontWeight: 500, fontSize: '13px', textTransform: 'none', margin: 0 }}
                                 >
                                   Reportar
