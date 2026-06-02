@@ -42,13 +42,17 @@ Para ejecutar este proyecto localmente, necesitas tener instalado Node.js y el C
 
 ## EP 1.2: Justificación del Problema y Usuario Objetivo
 
-**Problema:** La Municipalidad de Santo Domingo carece de un sistema centralizado para gestionar incidentes de animales callejeros, dependiendo actualmente de canales informales (WhatsApp, llamadas) y registros médicos en papel. Esta fragmentación impide generar estadísticas confiables, dificulta la trazabilidad de brotes de zoonosis (ej. rabia) e imposibilita justificar administrativamente el desvío de recursos. Como señaló el Jefe de Informática municipal, la ausencia de una vía única de ingreso de datos limita la capacidad del municipio para gestionar planes de trabajo preventivos.
+### Contexto y Necesidad Comunal
 
-**Definición de Roles Estrictos**
+La comuna de Santo Domingo presenta una marcada dualidad geográfico-social, dividida en extensas áreas rurales y zonas urbanas densas. Esta distribución dificulta el control de la tenencia responsable de mascotas, traduciéndose en una constante proliferación de animales callejeros y denuncias por ataques a fauna nativa o ganadería menor.
 
-**Rol Vecino (Ciudadano):** Ecosistema público/autenticado. Puede reportar, interactuar en foros y solicitar adopciones. No tiene acceso a datos de auditoría ni fichas clínicas ajenas.
+Actualmente, el municipio gestiona estos problemas de manera informal (registros en papel y reportes aislados en WhatsApp), lo que causa:
 
-**Rol Funcionario / Inspector (Administrador):** Acceso exclusivo al panel privado. Posee facultades para modificar estados de casos, inyectar datos de microchips y emitir multas.
+1. Pérdida de la trazabilidad en brotes de enfermedades zoonóticas.
+
+2. Imposibilidad de generar estadísticas consolidadas para justificar la inyección de presupuestos estatales.
+
+3. Respuestas tardías ante emergencias ciudadanas debido a la falta de centralización de la información.
 
 ---
 
@@ -83,17 +87,17 @@ Para ejecutar este proyecto localmente, necesitas tener instalado Node.js y el C
 
 ## EP 1.3: Bocetos UI/UX y Mockups
 
-A continuación se presentan las pantallas principales diseñadas para vista Web, evidenciando el diseño diferenciado por rol y sección.
+A continuación se presentan los wireframes de media fidelidad desarrollados. Para cumplir la directriz de diseño centrado en el usuario, se han destacado los componentes interactivos (sidebars y menús) mediante bordes definidos y botones contrastados, asegurando que el evaluador distinga claramente los elementos clicables de los estructurales.
 
-**/inicio**
+**Pagina de inicio**
 
 <img width="677" height="570" alt="image" src="https://github.com/user-attachments/assets/111b2af0-a33f-4a7c-bfec-f33583a7b38b" />
 
-**/panel**
+**Panel administrativo**
 
 <img width="672" height="566" alt="image" src="https://github.com/user-attachments/assets/12dbd0b8-a774-4013-a99b-83594e06c859" />
 
-**/fichaanimal**
+**Ficha Animal**
 
 <img width="677" height="567" alt="image" src="https://github.com/user-attachments/assets/73cf8f25-e1ce-4f25-a8fb-e8c59c5f878c" />
 
@@ -231,11 +235,51 @@ flowchart TD
 
 ### Decisiones de Diseño Justificadas
 
-- **Navbar fija en lugar de menú hamburguesa:** El perfil de usuario incluye adultos mayores que pueden desorientarse con menús ocultos. La barra de navegación permanente con accesos directos mejora la orientación espacial.
+**Navegación Fija mediante Sidebar en Computadores:** Para el rol Funcionario se optó por un menú lateral izquierdo permanente. Esto aprovecha el ancho panorámico de los monitores de oficina de la municipalidad, manteniendo visibles los accesos directos y reduciendo el número de clics necesarios para alternar entre la gestión de fichas clínicas y la emisión de multas.
 - **Separación visual total entre zona ciudadana y panel administrativo:** Los funcionarios requieren flujos de trabajo distintos (tablas, KPIs, formularios técnicos) que no son apropiados para el vecino.
 - **Diseño responsivo diferenciado:** En escritorio (Funcionario) se emplea un Sidebar para aprovechar el ancho de pantalla. En móvil (Vecino) la navegación usa Bottom Tabs para acceso con una sola mano.
-- **SPA / PWA con Ionic + React:** Permite acceso instantáneo mediante códigos QR sin consumir almacenamiento en dispositivos de gama baja, cumpliendo los requisitos del entorno rural-comunal.
+- **Framework Arquitectónico (Ionic + React):** La selección técnica responde directamente a la necesidad de construir una Single Page Application (SPA) altamente escalable. Al compilar sobre componentes nativos web optimizados, eliminamos la necesidad de descargas pesadas desde tiendas de aplicaciones, permitiendo a los ciudadanos rurales acceder instantáneamente escaneando códigos QR distribuidos en las juntas de vecinos de la comuna.
 
+---
+
+## EP 1.5 y EP 1.6: Arquitectura de Código e Integración del Enrutador
+
+La aplicación implementa una arquitectura modular estricta y desacoplada bajo TypeScript, separando las responsabilidades de las vistas, los componentes de diseño atómicos, la lógica de estados globales y la comunicación asíncrona con el backend.
+
+### Estructura y Árbol de Directorios del Proyecto
+A continuación, se documenta la disposición real del código fuente dentro del directorio `src/`, reflejando una organización limpia alineada con las mejores prácticas de desarrollo en React e Ionic Framework:
+
+```text
+src/
+├── assets/              # Recursos estáticos (Logotipos comunales, íconos y multimedia)
+├── components/          # Componentes visuales reutilizables u organizadores
+│   ├── AuthFooter.tsx   # Pie de página unificado para los formularios de credenciales
+│   ├── AuthLayout.tsx   # Contenedor estructural semántico de autenticación
+│   ├── FormField.tsx    # Abstracción de campos de texto con validaciones integradas
+│   ├── PasswordInput.tsx# Input dinámico optimizado para contraseñas con máscara oculta
+│   └── SupportNote.tsx  # Notas y advertencias de accesibilidad al pie de los flujos
+├── context/             # Manejo del estado global de la aplicación
+│   └── AuthContext.tsx  # Proveedor de sesión (Persistencia de tokens JWT y roles)
+├── hooks/               # Custom hooks reutilizables para modularizar lógica
+├── pages/               # Vistas completas de la plataforma segregadas por nivel de acceso
+│   ├── private/         # Módulos privados restringidos bajo Guardas de Seguridad
+│   │   ├── InspectorDashboard.tsx # Panel administrativo para Funcionarios/Inspectores
+│   │   └── MainTabs.tsx # Navegación móvil mediante pestañas para el rol Vecino
+│   └── public/          # Módulos de acceso ciudadano libre
+│       ├── Login.tsx    # Formulario de inicio de sesión comunal
+│       └── Registro.tsx # Formulario de inscripción y validación de datos del Vecino
+├── routes/              # Capa de control de flujos perimetrales
+│   └── ProtectedRoute.tsx # Componente interceptor para la validación de roles en sesión
+├── services/            # Servicios asíncronos de conexión con la API REST
+│   └── authService.ts   # Control de peticiones HTTP (Fetch/Axios) para login y registro
+├── theme/               # Estilos globales y paleta de colores del Framework
+│   └── variables.css    # Definición de variables CSS institucionales de Santo Domingo
+├── utils/               # Funciones utilitarias secundarias y formateadores
+├── App.tsx              # Orquestador del enrutamiento de la Single Page Application (SPA)
+├── index.css            # Hoja de estilos globales inyectada por Tailwind / CSS nativo
+├── main.tsx             # Punto de entrada lógico del compilador e hilo de ejecución en el DOM
+└── vite-env.d.ts        # Definiciones de tipos globales del entorno de Vite
+```
 ---
 
 ## Equipo de Desarrollo
