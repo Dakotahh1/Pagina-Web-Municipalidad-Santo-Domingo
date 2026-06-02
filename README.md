@@ -281,6 +281,131 @@ src/
 └── vite-env.d.ts        # Definiciones de tipos globales del entorno de Vite
 ```
 ---
+---
+
+# Entrega Parcial 2: Integración Frontend + Backend y Autenticación
+
+## EP 2.1 y EP 2.2: Entorno del Servidor y Modelado del Sistema Relacional
+
+El ecosistema de backend está desarrollado de forma desacoplada sobre **Node.js utilizando Express con TypeScript** , empleando **Prisma ORM** como motor de mapeo objeto-relacional para la persistencia e integridad de los datos en **PostgreSQL**.
+
+### Datos de Inicialización y Pruebas (Script Seed de Base de Datos)
+El sistema cuenta con un script automatizado de poblamiento (`prisma/seed.ts`) que inicializa los roles, las mascotas, los reportes en el mapa de calor, los operativos y las publicaciones del foro. Los usuarios de prueba cargados en la base de datos `bienestar_animal` son:
+
+| Nombre del Usuario | Correo Electrónico | Contraseña de Acceso | Rol Asignado | RUT Obligatorio |
+| :--- | :--- | :--- | :--- | :--- |
+| María González | `vecino@muni.cl` | `vecino123` | `vecino` | `12.345.678-9` |
+| Carlos Muñoz | `funcionario@muni.cl` | `func456#` | `funcionario` | *Interno Municipal* |
+| Inspector Rodríguez | `inspector@muni.cl` | `insp789#` | `inspector` | *Interno Municipal* |
+
+### Diagrama del Modelo Relacional (Integridad Referencial)
+Para dar estricto cumplimiento al respaldo del diseño de datos, se adjunta el esquema relacional que asegura que no queden registros huérfanos gracias a directrices de integridad como `ON DELETE CASCADE`:
+
+<img width="1492" height="1205" alt="WhatsApp Image 2026-05-22 at 6 22 08 AM" src="https://github.com/user-attachments/assets/2025f2d7-fcc1-4f4e-850d-4ad1e85b5fdb" />
+
+
+---
+
+## EP 2.3 y EP 2.4: API REST y Consumo de Servicios en Escritorio
+
+El backend levanta de forma local en el puerto `3001` (`http://localhost:3001/api`), interactuando con el frontend mediante peticiones asíncronas optimizadas y controladas con Axios/Fetch. Las respuestas emplean de manera estricta códigos de estado HTTP estandarizados y estructuras JSON uniformes:
+
+| Método | Endpoint Base | Descripción del Servicio (Foco Web) | Nivel de Acceso Obligatorio | Código OK | Código Error |
+| :---: | :--- | :--- | :--- | :---: | :---: |
+| **POST** | `/api/auth/admin-login` | Autenticación y firma de token para personal administrativo. | Público | `200 OK` | `401 / 403` |
+| **GET** | `/api/auth/me` | Recupera el perfil del usuario dueño del token en sesión. | Token Requerido | `200 OK` | `401 Unauthorized` |
+| **GET** | `/api/auth/inspector/chips`| Módulo restringido para el control y registro de microchips. | Solo `inspector` | `200 OK` | `403 Forbidden` |
+| **GET** | `/api/animales` | Obtiene el listado completo de mascotas desde PostgreSQL. | Público | `200 OK` | `500 Server Error` |
+
+### Métrica de Estructura JSON de Respuesta (`GET /api/animales`)
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 3,
+      "nombre": "Leonidas",
+      "especie": "Perro",
+      "raza": "Mestizo",
+      "sexo": "Macho",
+      "edad": 3,
+      "color": "Negro",
+      "vacunado": true,
+      "castrado": true,
+      "chip": "LEO-7777-2222-44444",
+      "descripcion": "Perro leal y protector",
+      "estado_adopcion": "En tratamiento"
+    }
+  ]
+}
+```
+
+## EP 2.5 y EP 2.6: Seguridad de la API, Autenticación y Control Anti-Inyección
+
+Para blindar la plataforma municipal contra vulnerabilidades y accesos indebidos, se implementaron cuatro pilares de seguridad informática activa:
+
+**Protección Crítica contra Inyecciones SQL:** Para subsanar las ambigüedades de código, el servidor procesa las consultas mediante el motor de Prisma ORM empleando consultas SQL parametrizadas de forma posicional ($1, $2, $3). Esto previene que una inserción maliciosa altere la lógica relacional del compilador, tal como se evidencia en los logs reales del servidor: 
+```
+SELECT "public"."Usuario"."id", "public"."Usuario"."correo"... FROM "public"."Usuario" WHERE ("public"."Usuario"."correo" = $1 AND 1=1) LIMIT $2 OFFSET $3
+```
+
+**Cifrado Criptográfico con bcrypt:** Las contraseñas de los ciudadanos y funcionarios jamás se almacenan ni viajan en texto plano en la base de datos relacional. Al registrar o inicializar un usuario, se genera un Hash irreversible utilizando la librería bcrypt con un factor de seguridad de 10 salt rounds. 
+
+**Autenticación Basada en Tokens JWT:** Tras la validación correcta de credenciales por bcrypt.compare(), el servidor expide un JSON Web Token firmado bajo la firma algorítmica HS256, configurado con una expiración rígida de 8 horas para mitigar secuestros de sesión. 
+
+**Middleware de Validación de Roles (Control Perimetral):** El backend cuenta con interceptores lógicos (verifyJWT y requireRole). Si un encabezado Authorization tipo Bearer Token llega alterado, malformado o ausente, la petición es rechazada ipso facto con un código 401 Unauthorized. Si el token posee un rol con privilegios insuficientes, se deniega el acceso con un código _403 Forbidden_.
+
+---
+
+## EP 2.7: Pruebas Funcionales y Evidencias Técnicas en Postman
+
+Cada endpoint y middleware de control de accesos fue sometido a pruebas funcionales en Postman con el servidor ejecutándose en desarrollo (http://localhost:3001), capturando las respuestas controladas del sistema: 
+
+**Prueba 1: Login de Personal Administrativo Exitoso** **(POST _/api/auth/admin-login_)**
+
+**Estado HTTP:** 200 OK   
+**Sustento Técnico:** Envío de credenciales correctas de un funcionario. El servidor responde con success: true, los metadatos del usuario y el token JWT de autorización generado.
+
+<img width="504" height="554" alt="image" src="https://github.com/user-attachments/assets/3ad1277e-aeca-433c-8095-2f8f0a805139" />
+
+
+**Prueba 2: Acceso a Perfil con Token de Autorización Válido (GET _/api/auth/me_)**
+**Estado HTTP:** 200 OK   
+**Sustento Técnico:** Envío del JWT válido en la cabecera Authorization: Bearer <token>. El middleware verifica la firma y retorna los datos comunales e institucionales del usuario (Valparaíso, Santo Domingo).  
+
+<img width="500" height="560" alt="image" src="https://github.com/user-attachments/assets/58bbd54d-d14e-4853-8f85-2d9b80a18cc9" />
+
+
+
+**Prueba 3: Bloqueo de Ruta Segura por Token Ausente (GET _/api/auth/me_)**
+**Estado HTTP:** 401 Unauthorized   
+**Sustento Técnico:** Intento de consulta perimetral sin cabeceras de autenticación. El middleware frena la ejecución antes de tocar el controlador y despacha el código de error controlado TOKEN_MISSING.  
+
+<img width="503" height="454" alt="image" src="https://github.com/user-attachments/assets/77307548-041a-480b-af54-5950686dce25" />
+
+
+**Prueba 4: Rechazo por Token Inválido o Modificado (GET _/api/auth/me_)**
+**Estado HTTP:** 401 Unauthorized   
+**Sustento Técnico:** Envío de una firma malformada de prueba (tokenbasura123). El método jwt.verify() arroja una excepción controlada respondiendo con el código de error TOKEN_INVALID. 
+
+<img width="504" height="508" alt="image" src="https://github.com/user-attachments/assets/43da4ffa-d314-4c5f-a3e1-619291824a64" />
+
+
+**Prueba 5: Denegación de Acceso por Nivel de Rol Insuficiente (GET _/api/auth/inspector/chips_)**
+**Estado HTTP:** 403 Forbidden   
+**Sustento Técnico:** Simulación de intrusión donde un usuario con el rol de funcionario intenta consumir un recurso exclusivo del rol de inspector. El token es estructuralmente íntegro (pasa el filtro 401), pero la validación lógica del interceptor rechaza la acción con el código de error
+
+<img width="502" height="462" alt="image" src="https://github.com/user-attachments/assets/7c5f8a05-b40b-4d61-a69a-cbe5f050b51e" />
+
+
+**Prueba 6: Consulta de Registros de Mascotas desde PostgreSQL (GET _/api/animales_)**
+**Estado HTTP**: 200 OK   
+**Sustento Técnico: **Endpoint público que realiza de forma directa la consulta a la tabla Mascota de PostgreSQL mediante Prisma ORM, trayendo los datos serializados en un arreglo de objetos del inventario real de la municipalidad. 
+
+<img width="496" height="509" alt="image" src="https://github.com/user-attachments/assets/9c5bc9d6-8cc3-4f4e-bdec-42fab63d94a6" />
+
+
+---
 
 ## Equipo de Desarrollo
 
