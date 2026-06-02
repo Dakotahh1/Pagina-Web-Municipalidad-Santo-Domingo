@@ -1,105 +1,117 @@
 import { Request, Response } from 'express';
-import { v4 as uuidv4 } from 'uuid';
-import { adopcionesDb, animalesDb } from '../data/mockData';
-import { SolicitudAdopcion } from '../types';
+import prisma from '../lib/prismaClient';
 import { ok, created, list, badRequest, notFound, noContent, conflict } from '../utils/responseHelper';
 
-/*controller de solicitudes de adopción (RF02).
-  los vecinos crean solicitudes asociadas a un animal disponible.
-  los funcionarios las aprueban o rechazan*/
-
 // GET /api/adopciones?estado=Pendiente
-export const getSolicitudes = (req: Request, res: Response): void => {
-  const { estado } = req.query;
-  let resultado = [...adopcionesDb];
-  if (estado) resultado = resultado.filter(s => s.estado === estado);
-  list(res, resultado, resultado.length);
+export const getSolicitudes = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { estado } = req.query;
+    const solicitudes = await prisma.solicitudAdopcion.findMany({
+      where: estado ? { estado_solicitud: String(estado) } : {},
+      include: {
+        usuario: { select: { nombre_completo: true, correo: true } },
+        mascota: { select: { nombre: true, especie: true } },
+      },
+      orderBy: { fecha_solicitud: 'desc' },
+    });
+    list(res, solicitudes, solicitudes.length);
+  } catch (error) {
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno' } });
+  }
 };
 
 // GET /api/adopciones/:id
-export const getSolicitudById = (req: Request, res: Response): void => {
-  const solicitud = adopcionesDb.find(s => s.id === req.params.id);
-  if (!solicitud) {
-    notFound(res, `Solicitud con id ${req.params.id} no encontrada`);
-    return;
+export const getSolicitudById = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const solicitud = await prisma.solicitudAdopcion.findUnique({
+      where: { id: parseInt(req.params.id) },
+      include: {
+        usuario: { select: { nombre_completo: true, correo: true } },
+        mascota: true,
+      },
+    });
+    if (!solicitud) { notFound(res, `Solicitud con id ${req.params.id} no encontrada`); return; }
+    ok(res, solicitud);
+  } catch (error) {
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno' } });
   }
-  ok(res, solicitud);
 };
 
 // POST /api/adopciones
-export const createSolicitud = (req: Request, res: Response): void => {
-  const { animalId, vecinoRut, vecinoNombre, vecinoTelefono, motivo } = req.body;
+export const createSolicitud = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { animalId, vecinoRut, vecinoNombre, vecinoTelefono, motivo } = req.body;
 
-  if (!animalId || !vecinoRut || !vecinoNombre || !vecinoTelefono || !motivo) {
-    badRequest(res, 'Faltan campos obligatorios', {
-      required: ['animalId', 'vecinoRut', 'vecinoNombre', 'vecinoTelefono', 'motivo']
+    if (!animalId || !vecinoRut || !vecinoNombre || !vecinoTelefono || !motivo) {
+      badRequest(res, 'Faltan campos obligatorios', { required: ['animalId', 'vecinoRut', 'vecinoNombre', 'vecinoTelefono', 'motivo'] });
+      return;
+    }
+
+    const mascota = await prisma.mascota.findUnique({ where: { id: parseInt(animalId) } });
+    if (!mascota) { notFound(res, `Animal con id ${animalId} no existe`); return; }
+    if (mascota.estado_adopcion !== 'Disponible') {
+      conflict(res, `El animal "${mascota.nombre}" no está disponible (estado: ${mascota.estado_adopcion})`);
+      return;
+    }
+
+    const usuario = await prisma.usuario.findUnique({ where: { rut: vecinoRut } });
+    if (!usuario) { badRequest(res, `No existe un usuario con RUT ${vecinoRut}`); return; }
+
+    const solicitud = await prisma.solicitudAdopcion.create({
+      data: {
+        usuario_id: usuario.id,
+        mascota_id: mascota.id,
+        motivo,
+        telefono: vecinoTelefono,
+        estado_solicitud: 'Pendiente',
+      },
     });
-    return;
+    created(res, solicitud, 'Solicitud de adopción enviada');
+  } catch (error) {
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno' } });
   }
-
-  // Validar que el animal exista y esté disponible
-  const animal = animalesDb.find(a => a.id === animalId);
-  if (!animal) {
-    notFound(res, `El animal con id ${animalId} no existe`);
-    return;
-  }
-  if (animal.estado !== 'Disponible') {
-    conflict(res, `El animal "${animal.nombre}" no está disponible para adopción (estado: ${animal.estado})`);
-    return;
-  }
-
-  const ahora = new Date().toISOString();
-  const nueva: SolicitudAdopcion = {
-    id: uuidv4(),
-    animalId, vecinoRut, vecinoNombre, vecinoTelefono, motivo,
-    estado: 'Pendiente',
-    fechaCreacion: ahora,
-    fechaActualizacion: ahora,
-  };
-  adopcionesDb.push(nueva);
-  created(res, nueva, 'Solicitud de adopción enviada');
 };
 
 // PATCH /api/adopciones/:id
-export const patchSolicitud = (req: Request, res: Response): void => {
-  const idx = adopcionesDb.findIndex(s => s.id === req.params.id);
-  if (idx === -1) {
-    notFound(res, `Solicitud con id ${req.params.id} no encontrada`);
-    return;
-  }
+export const patchSolicitud = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id);
+    const existe = await prisma.solicitudAdopcion.findUnique({ where: { id } });
+    if (!existe) { notFound(res, `Solicitud con id ${id} no encontrada`); return; }
 
-  if (req.body.estado && !['Pendiente', 'Aprobada', 'Rechazada'].includes(req.body.estado)) {
-    badRequest(res, 'Estado inválido. Debe ser "Pendiente", "Aprobada" o "Rechazada"');
-    return;
-  }
-
-  adopcionesDb[idx] = {
-    ...adopcionesDb[idx],
-    ...req.body,
-    id: adopcionesDb[idx].id,
-    fechaCreacion: adopcionesDb[idx].fechaCreacion,
-    fechaActualizacion: new Date().toISOString(),
-  };
-
-  // Si fue aprobada, marcar al animal como adoptado
-  if (req.body.estado === 'Aprobada') {
-    const animalIdx = animalesDb.findIndex(a => a.id === adopcionesDb[idx].animalId);
-    if (animalIdx !== -1) {
-      animalesDb[animalIdx].estado = 'Adoptado';
-      animalesDb[animalIdx].fechaActualizacion = new Date().toISOString();
+    if (req.body.estado && !['Pendiente', 'Aprobada', 'Rechazada'].includes(req.body.estado)) {
+      badRequest(res, 'Estado inválido. Debe ser "Pendiente", "Aprobada" o "Rechazada"');
+      return;
     }
-  }
 
-  ok(res, adopcionesDb[idx], 'Solicitud actualizada');
+    const solicitud = await prisma.solicitudAdopcion.update({
+      where: { id },
+      data: { ...(req.body.estado && { estado_solicitud: req.body.estado }) },
+    });
+
+    // Si fue aprobada, marcar al animal como adoptado
+    if (req.body.estado === 'Aprobada') {
+      await prisma.mascota.update({
+        where: { id: existe.mascota_id },
+        data: { estado_adopcion: 'Adoptado' },
+      });
+    }
+
+    ok(res, solicitud, 'Solicitud actualizada');
+  } catch (error) {
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno' } });
+  }
 };
 
 // DELETE /api/adopciones/:id
-export const deleteSolicitud = (req: Request, res: Response): void => {
-  const idx = adopcionesDb.findIndex(s => s.id === req.params.id);
-  if (idx === -1) {
-    notFound(res, `Solicitud con id ${req.params.id} no encontrada`);
-    return;
+export const deleteSolicitud = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id);
+    const existe = await prisma.solicitudAdopcion.findUnique({ where: { id } });
+    if (!existe) { notFound(res, `Solicitud con id ${id} no encontrada`); return; }
+    await prisma.solicitudAdopcion.delete({ where: { id } });
+    noContent(res);
+  } catch (error) {
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno' } });
   }
-  adopcionesDb.splice(idx, 1);
-  noContent(res);
 };

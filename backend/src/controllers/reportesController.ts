@@ -1,104 +1,122 @@
 import { Request, Response } from 'express';
-import { v4 as uuidv4 } from 'uuid';
-import { reportesDb } from '../data/mockData';
-import { Reporte } from '../types';
+import prisma from '../lib/prismaClient';
 import { ok, created, list, badRequest, notFound, noContent } from '../utils/responseHelper';
 
-/*controller de reportes ciudadanos (RF01).
-  los vecinos crean reportes (POST), los inspectores cambian el estado (PATCH)*/
-
 // GET /api/reportes?estado=Pendiente&urgente=true
-export const getReportes = (req: Request, res: Response): void => {
-  const { estado, urgente } = req.query;
-  let resultado = [...reportesDb];
-
-  if (estado) resultado = resultado.filter(r => r.estado === estado);
-  if (urgente !== undefined) {
-    const flag = urgente === 'true';
-    resultado = resultado.filter(r => r.urgente === flag);
+export const getReportes = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { estado, urgente } = req.query;
+    const reportes = await prisma.reporte.findMany({
+      where: {
+        ...(estado ? { estado: String(estado) } : {}),
+        ...(urgente !== undefined ? { urgente: urgente === 'true' } : {}),
+      },
+      include: { usuario: { select: { nombre_completo: true, correo: true } } },
+      orderBy: { fecha_creacion: 'desc' },
+    });
+    list(res, reportes, reportes.length);
+  } catch (error) {
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno' } });
   }
-
-  list(res, resultado, resultado.length);
 };
 
 // GET /api/reportes/:id
-export const getReporteById = (req: Request, res: Response): void => {
-  const reporte = reportesDb.find(r => r.id === req.params.id);
-  if (!reporte) {
-    notFound(res, `Reporte con id ${req.params.id} no encontrado`);
-    return;
+export const getReporteById = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const reporte = await prisma.reporte.findUnique({
+      where: { id: parseInt(req.params.id) },
+      include: { usuario: { select: { nombre_completo: true, correo: true } } },
+    });
+    if (!reporte) { notFound(res, `Reporte con id ${req.params.id} no encontrado`); return; }
+    ok(res, reporte);
+  } catch (error) {
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno' } });
   }
-  ok(res, reporte);
 };
 
 // POST /api/reportes
-export const createReporte = (req: Request, res: Response): void => {
-  const { vecinoRut, tipo, descripcion, ubicacion } = req.body;
+export const createReporte = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { vecinoRut, tipo, descripcion, ubicacion } = req.body;
 
-  if (!vecinoRut || !tipo || !descripcion || !ubicacion) {
-    badRequest(res, 'Faltan campos obligatorios', {
-      required: ['vecinoRut', 'tipo', 'descripcion', 'ubicacion']
+    if (!vecinoRut || !tipo || !descripcion || !ubicacion) {
+      badRequest(res, 'Faltan campos obligatorios', { required: ['vecinoRut', 'tipo', 'descripcion', 'ubicacion'] });
+      return;
+    }
+    const tiposValidos = ['Abandono', 'Animal herido', 'Mordedura', 'Tenencia irresponsable'];
+    if (!tiposValidos.includes(tipo)) {
+      badRequest(res, `Tipo inválido. Debe ser uno de: ${tiposValidos.join(', ')}`);
+      return;
+    }
+    if (typeof ubicacion.lat !== 'number' || typeof ubicacion.lng !== 'number' || !ubicacion.sector) {
+      badRequest(res, 'Ubicación inválida. Requiere { lat, lng, sector }');
+      return;
+    }
+
+    // Buscar usuario por RUT para obtener el id
+    const usuario = await prisma.usuario.findUnique({ where: { rut: vecinoRut } });
+    if (!usuario) {
+      badRequest(res, `No existe un usuario con RUT ${vecinoRut}`);
+      return;
+    }
+
+    const reporte = await prisma.reporte.create({
+      data: {
+        usuario_id: usuario.id,
+        tipo_incidente: tipo,
+        descripcion,
+        latitud: ubicacion.lat,
+        longitud: ubicacion.lng,
+        sector: ubicacion.sector,
+        urgente: req.body.urgente ?? false,
+        estado: 'Pendiente',
+        fotos: req.body.fotos ?? [],
+      },
     });
-    return;
+    created(res, reporte, 'Reporte recibido. La municipalidad lo revisará en 24-48 hrs');
+  } catch (error) {
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno' } });
   }
-  const tiposValidos = ['Abandono', 'Animal herido', 'Mordedura', 'Tenencia irresponsable'];
-  if (!tiposValidos.includes(tipo)) {
-    badRequest(res, `Tipo inválido. Debe ser uno de: ${tiposValidos.join(', ')}`);
-    return;
-  }
-  if (typeof ubicacion.lat !== 'number' || typeof ubicacion.lng !== 'number' || !ubicacion.sector) {
-    badRequest(res, 'Ubicación inválida. Requiere { lat: number, lng: number, sector: string }');
-    return;
-  }
-
-  const ahora = new Date().toISOString();
-  const nuevo: Reporte = {
-    id: uuidv4(),
-    vecinoRut, tipo, descripcion, ubicacion,
-    urgente:           req.body.urgente ?? false,
-    estado:            'Pendiente',
-    fotos:             req.body.fotos ?? [],
-    inspectorAsignado: null,
-    fechaCreacion: ahora,
-    fechaActualizacion: ahora,
-  };
-  reportesDb.push(nuevo);
-  created(res, nuevo, 'Reporte recibido. La municipalidad lo revisará en 24-48 hrs');
 };
 
 // PATCH /api/reportes/:id
-export const patchReporte = (req: Request, res: Response): void => {
-  const idx = reportesDb.findIndex(r => r.id === req.params.id);
-  if (idx === -1) {
-    notFound(res, `Reporte con id ${req.params.id} no encontrado`);
-    return;
-  }
+export const patchReporte = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id);
+    const existe = await prisma.reporte.findUnique({ where: { id } });
+    if (!existe) { notFound(res, `Reporte con id ${id} no encontrado`); return; }
 
-  if (req.body.estado) {
-    const estadosValidos = ['Pendiente', 'En proceso', 'Resuelto', 'Cerrado'];
-    if (!estadosValidos.includes(req.body.estado)) {
-      badRequest(res, `Estado inválido. Debe ser uno de: ${estadosValidos.join(', ')}`);
-      return;
+    if (req.body.estado) {
+      const estadosValidos = ['Pendiente', 'En proceso', 'Resuelto', 'Cerrado'];
+      if (!estadosValidos.includes(req.body.estado)) {
+        badRequest(res, `Estado inválido. Debe ser uno de: ${estadosValidos.join(', ')}`);
+        return;
+      }
     }
-  }
 
-  reportesDb[idx] = {
-    ...reportesDb[idx],
-    ...req.body,
-    id: reportesDb[idx].id,
-    fechaCreacion: reportesDb[idx].fechaCreacion,
-    fechaActualizacion: new Date().toISOString(),
-  };
-  ok(res, reportesDb[idx], 'Reporte actualizado');
+    const reporte = await prisma.reporte.update({
+      where: { id },
+      data: {
+        ...(req.body.estado              && { estado: req.body.estado }),
+        ...(req.body.inspector_asignado  && { inspector_asignado: req.body.inspector_asignado }),
+        ...(req.body.urgente !== undefined && { urgente: req.body.urgente }),
+      },
+    });
+    ok(res, reporte, 'Reporte actualizado');
+  } catch (error) {
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno' } });
+  }
 };
 
 // DELETE /api/reportes/:id
-export const deleteReporte = (req: Request, res: Response): void => {
-  const idx = reportesDb.findIndex(r => r.id === req.params.id);
-  if (idx === -1) {
-    notFound(res, `Reporte con id ${req.params.id} no encontrado`);
-    return;
+export const deleteReporte = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id);
+    const existe = await prisma.reporte.findUnique({ where: { id } });
+    if (!existe) { notFound(res, `Reporte con id ${id} no encontrado`); return; }
+    await prisma.reporte.delete({ where: { id } });
+    noContent(res);
+  } catch (error) {
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno' } });
   }
-  reportesDb.splice(idx, 1);
-  noContent(res);
 };

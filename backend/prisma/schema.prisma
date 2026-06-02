@@ -1,0 +1,141 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── ROLES ────────────────────────────────────────────────────────────────────
+model Rol {
+  id       Int       @id @default(autoincrement())
+  nombre   String    @unique // 'vecino' | 'funcionario' | 'inspector'
+  usuarios Usuario[]
+}
+
+// ─── USUARIOS ─────────────────────────────────────────────────────────────────
+model Usuario {
+  id             Int      @id @default(autoincrement())
+  rut            String   @unique
+  nombre_completo String
+  correo         String   @unique
+  password_hash  String
+  region         String
+  comuna         String
+  activo         Boolean  @default(true)
+  rol_id         Int
+  fecha_creacion DateTime @default(now())
+
+  // Relaciones
+  rol                    Rol                    @relation(fields: [rol_id], references: [id])
+  reportes               Reporte[]
+  foro_publicaciones     ForoPublicacion[]
+  solicitudes_adopcion   SolicitudAdopcion[]
+  inscripciones_operativos InscripcionOperativo[]
+}
+
+// ─── MASCOTAS (= animalesDb en el código) ─────────────────────────────────────
+model Mascota {
+  id              Int      @id @default(autoincrement())
+  nombre          String
+  especie         String   // 'Perro' | 'Gato'
+  raza            String
+  sexo            String   // 'Macho' | 'Hembra'
+  edad            Int
+  color           String   @default("")
+  vacunado        Boolean  @default(false)
+  castrado        Boolean  @default(false)
+  chip            String?  // nullable — no todos tienen chip
+  descripcion     String   @default("")
+  estado_adopcion String   @default("Disponible") // 'Disponible' | 'Adoptado' | 'En tratamiento'
+  imagenes        String[] @default([])
+  fecha_creacion  DateTime @default(now())
+  fecha_actualizacion DateTime @updatedAt
+
+  // Relaciones
+  solicitudes_adopcion SolicitudAdopcion[]
+}
+
+// ─── REPORTES ─────────────────────────────────────────────────────────────────
+model Reporte {
+  id              Int      @id @default(autoincrement())
+  usuario_id      Int
+  tipo_incidente  String   // 'Abandono' | 'Animal herido' | 'Mordedura' | 'Tenencia irresponsable'
+  descripcion     String
+  latitud         Decimal
+  longitud        Decimal
+  sector          String
+  urgente         Boolean  @default(false)
+  estado          String   @default("Pendiente") // 'Pendiente' | 'En proceso' | 'Resuelto' | 'Cerrado'
+  fotos           String[] @default([])
+  inspector_asignado String?
+  fecha_creacion  DateTime @default(now())
+  fecha_actualizacion DateTime @updatedAt
+
+  // Relaciones
+  usuario Usuario @relation(fields: [usuario_id], references: [id])
+}
+
+// ─── OPERATIVOS ───────────────────────────────────────────────────────────────
+model Operativo {
+  id              Int      @id @default(autoincrement())
+  titulo          String
+  tipo            String   // 'Vacunación' | 'Esterilización' | 'Chipeo' | 'Mixto'
+  descripcion     String   @default("")
+  fecha_evento    DateTime
+  hora            String
+  ubicacion       String
+  cupos_totales   Int
+  cupos_disponibles Int
+  estado          String   @default("Programado") // 'Programado' | 'En curso' | 'Finalizado'
+  fecha_creacion  DateTime @default(now())
+  fecha_actualizacion DateTime @updatedAt
+
+  // Relaciones
+  inscripciones InscripcionOperativo[]
+}
+
+// ─── INSCRIPCIONES OPERATIVOS ─────────────────────────────────────────────────
+model InscripcionOperativo {
+  id                Int      @id @default(autoincrement())
+  operativo_id      Int
+  usuario_id        Int
+  fecha_inscripcion DateTime @default(now())
+
+  // Relaciones
+  operativo Operativo @relation(fields: [operativo_id], references: [id])
+  usuario   Usuario   @relation(fields: [usuario_id], references: [id])
+
+  @@unique([operativo_id, usuario_id]) // un usuario no puede inscribirse dos veces
+}
+
+// ─── SOLICITUDES DE ADOPCIÓN ──────────────────────────────────────────────────
+model SolicitudAdopcion {
+  id               Int      @id @default(autoincrement())
+  usuario_id       Int
+  mascota_id       Int
+  motivo           String
+  telefono         String
+  estado_solicitud String   @default("Pendiente") // 'Pendiente' | 'Aprobada' | 'Rechazada'
+  fecha_solicitud  DateTime @default(now())
+  fecha_actualizacion DateTime @updatedAt
+
+  // Relaciones
+  usuario Usuario @relation(fields: [usuario_id], references: [id])
+  mascota Mascota @relation(fields: [mascota_id], references: [id])
+}
+
+// ─── FORO PUBLICACIONES ───────────────────────────────────────────────────────
+model ForoPublicacion {
+  id                Int      @id @default(autoincrement())
+  usuario_id        Int
+  titulo            String
+  contenido         String
+  categoria         String   @default("General") // 'Abandono' | 'Adopcion' | 'Consulta' | 'Reclamo' | 'General'
+  fecha_publicacion DateTime @default(now())
+  fecha_actualizacion DateTime @updatedAt
+
+  // Relaciones
+  usuario Usuario @relation(fields: [usuario_id], references: [id])
+}
