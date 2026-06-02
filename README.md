@@ -7,6 +7,14 @@ Esta aplicación es una plataforma desarrollada para la Municipalidad de Santo D
 
 ---
 
+## Requisitos e Instalación (Solución a Conflicto de Dependencias)
+
+> ⚠️ **NOTA CRÍTICA DE INSTALACIÓN:** Debido a que el entorno utiliza configuraciones de vanguardia basadas en **Vite 8.0**, y ciertos plugins internos de Ionic y Vitest mantienen dependencias de revisión previas, el gestor de paquetes de Node (`npm`) podría interrumpir la instalación por conflictos de pares (`ERRESOLVE`). 
+>
+> Para asegurar una compilación limpia y exitosa sin alterar el árbol lógico del proyecto, **es estrictamente obligatorio ejecutar la instalación utilizando la bandera de compatibilidad heredada**.
+
+
+
 ## Tecnologías Utilizadas
 
 | Capa | Tecnología |
@@ -22,9 +30,12 @@ Esta aplicación es una plataforma desarrollada para la Municipalidad de Santo D
 
 Para ejecutar este proyecto localmente, necesitas tener instalado Node.js y el CLI de Ionic.
 
-1. Clonar el repositorio
-2. Abrir la terminal en la raíz del proyecto
-3. Instalar dependencias: `npm install`
+1. Clonar el repositorio:
+   ```bash
+   git clone [https://github.com/Dakotahh1/Pagina-Web-Municipalidad-Santo-Domingo.git](https://github.com/Dakotahh1/Pagina-Web-Municipalidad-Santo-Domingo.git)
+
+2. Desplazarse a la raiz del proyecto cd Pagina-Web-Municipalidad-Santo-Domingo
+3. Instalar dependencia omitiendo el bloqueo de pares (Resolucion del error del entorno) : `npm install --legacy-peer-deps`
 4. Levantar el servidor de desarrollo: `ionic serve`
 
 ---
@@ -33,10 +44,11 @@ Para ejecutar este proyecto localmente, necesitas tener instalado Node.js y el C
 
 **Problema:** La Municipalidad de Santo Domingo carece de un sistema centralizado para gestionar incidentes de animales callejeros, dependiendo actualmente de canales informales (WhatsApp, llamadas) y registros médicos en papel. Esta fragmentación impide generar estadísticas confiables, dificulta la trazabilidad de brotes de zoonosis (ej. rabia) e imposibilita justificar administrativamente el desvío de recursos. Como señaló el Jefe de Informática municipal, la ausencia de una vía única de ingreso de datos limita la capacidad del municipio para gestionar planes de trabajo preventivos.
 
-**Usuarios Objetivo:**
+**Definición de Roles Estrictos**
 
-- **Vecino (Ciudadano):** Habitantes de zonas urbanas y rurales de Santo Domingo. Suelen utilizar dispositivos móviles de gama baja y enfrentan problemas de conectividad. Requieren flujos de entrada de datos rápidos, interfaces intuitivas para adultos mayores y acceso web directo mediante código QR sin necesidad de instalar aplicaciones nativas.
-- **Funcionario (Inspector/Veterinario):** Personal municipal que trabaja en oficina y en terreno. Necesitan digitalizar su trabajo operativo, centralizar evidencia (fotografías, geolocalización), y acceder a un panel de métricas para la toma de decisiones.
+**Rol Vecino (Ciudadano):** Ecosistema público/autenticado. Puede reportar, interactuar en foros y solicitar adopciones. No tiene acceso a datos de auditoría ni fichas clínicas ajenas.
+
+**Rol Funcionario / Inspector (Administrador):** Acceso exclusivo al panel privado. Posee facultades para modificar estados de casos, inyectar datos de microchips y emitir multas.
 
 ---
 
@@ -49,23 +61,23 @@ Para ejecutar este proyecto localmente, necesitas tener instalado Node.js y el C
 
 ### Requerimientos Funcionales
 
-| ID | Módulo | Descripción |
-|----|--------|-------------|
-| **RF-01** | Foro de Reportes | El sistema debe ofrecer un espacio tipo foro donde los vecinos puedan publicar reportes de abandono, reclamos o consultas, adjuntando fotografías y geolocalización. |
-| **RF-02** | Gestión de Adopciones | El sistema debe contar con un módulo para publicar y gestionar solicitudes de adopción, visible para toda la comunidad. |
-| **RF-03** | Ficha Clínica Digital | El sistema debe mantener un registro digital de cada animal bajo seguimiento municipal, reemplazando el registro en papel. |
-| **RF-04** | Gestión de Operativos | El sistema debe permitir al municipio organizar e informar sobre operativos de terreno (vacunación, esterilización). |
-| **RF-05** | Control de Microchips | El sistema debe integrar un módulo de seguimiento de chipeo para contabilizar animales registrados en la comuna. |
-| **RF-06** | Directorio de Contactos | El sistema debe gestionar un directorio de contactos institucionales accesibles para consultas rápidas. |
-| **RF-07** | Dashboard Estadístico | El sistema debe proveer al rol Funcionario un panel que centralice las métricas de gestión. |
+| ID | Módulo | Descripción por rol | Métrica Cuantitativa de Evaluación |
+|----|--------|---------------------|------------------------------------------- |
+| **RF-01** | Foro de Reportes | El Vecino puede publicar incidentes adjuntando texto, coordenadas geográficas y fotos. El Funcionario puede cambiar el estado a "Resuelto".| Tiempo de persistencia en renderizado menor a 1.5s. Admisión de strings de texto de hasta 1000 caracteres  |
+| **RF-02** | Gestión de Adopciones | El Vecino visualiza animales y presiona "Solicitar". El Funcionario recibe la solicitud en una lista de espera indexada.| El sistema debe soportar un mínimo de 200 solicitudes simultáneas sin pérdida de paquetes de datos. |
+| **RF-03** | Ficha Clínica Digital | El Funcionario puede crear, actualizar y archivar el historial médico de un animal (vacunas, esterilizaciones).| El formulario debe validar campos obligatorios y rechazar inputs nulos con alertas nativas en < 200ms. |
+| **RF-04** | Gestión de Operativos | El Funcionario agenda operativos territoriales. El Vecino se inscribe reduciendo los cupos disponibles en tiempo real. | Decremento atómico del contador de cupos. Bloqueo automático del botón de inscripción al llegar a 0 cupos. |
+| **RF-05** | Control de Microchips | El Inspector asocia un código de microchip único al RUT de un vecino mediante un formulario indexado. | Validación de expresión regular: El código de chip debe poseer exactamente 15 dígitos numéricos estándar. |
+| **RF-06** | Directorio de Contactos | Ambos Roles pueden consultar teléfonos, correos y horarios de la unidad de protección animal. | Buscador reactivo indexado por caracteres que filtra los datos en pantalla en un tiempo máximo de 100ms. |
+| **RF-07** | Dashboard Estadístico | El Funcionario visualiza gráficos dinámicos con los KPIs mensuales del estado de la tenencia comunal.| Precisión del 100% en el cálculo de métricas en base a las filas de la consulta relacional SQL ejecutada. |
 
-### Requerimientos No Funcionales
+### Requerimientos No Funcionales (Medibles)
 
-| ID | Categoría | Descripción | Criterios de Aceptación |
-|----|-----------|-------------|------------------------|
-| **RNF-01** | Usabilidad | La interfaz debe priorizar la claridad sobre la densidad visual, considerando que la comunidad incluye adultos mayores. | Colores institucionales con alto contraste. Botones expansivos y navegación estructurada en tarjetas grandes. |
-| **RNF-02** | Rendimiento | El sistema debe funcionar fluidamente en zonas rurales con baja señal y en dispositivos de gama baja. | Imágenes comprimidas a máx. 2MB antes del envío al servidor. Tiempo de carga inicial inferior a 3 segundos. |
-| **RNF-03** | Seguridad | Restricción estricta de la información municipal administrativa. | Control de acceso mediante tokens JWT. Endpoints de fichas, multas y datos personales bloqueados para el rol Vecino. |
+**RNF-01 (Usabilidad / Accesibilidad):** La interfaz debe garantizar una tasa de contraste mínima de 4.5:1 para textos normales conforme a las pautas WCAG 2.1 AA, utilizando botones interactivos expansivos (mínimo 48px de área táctil) para facilitar el uso a adultos mayores en Santo Domingo.
+
+**RNF-02 (Rendimiento en Entornos Rurales):** El tamaño de carga de la landing page principal no debe exceder los 2.5 MB. Las imágenes de incidentes deben ser comprimidas en el cliente a un máximo de 2MB antes de viajar por la red, permitiendo un funcionamiento fluido en zonas con conectividad 3G/4G inestable.
+
+**RNF-03 (Seguridad / Control de Acceso):** Todas las solicitudes a rutas administrativas (/admin/*) deben estar validadas mediante un middleware interceptor de tokens JWT. Cualquier petición sin credenciales o con un rol no autorizado debe ser rechazada y redirigida al /login en menos de 50ms.
 
 ---
 
