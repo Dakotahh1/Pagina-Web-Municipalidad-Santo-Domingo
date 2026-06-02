@@ -23,14 +23,16 @@ export const getSolicitudes = async (req: Request, res: Response): Promise<void>
 // GET /api/adopciones/:id
 export const getSolicitudById = async (req: Request, res: Response): Promise<void> => {
   try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) { badRequest(res, 'ID inválido'); return; }
     const solicitud = await prisma.solicitudAdopcion.findUnique({
-      where: { id: parseInt(req.params.id) },
+      where: { id },
       include: {
         usuario: { select: { nombre_completo: true, correo: true } },
         mascota: true,
       },
     });
-    if (!solicitud) { notFound(res, `Solicitud con id ${req.params.id} no encontrada`); return; }
+    if (!solicitud) { notFound(res, `Solicitud con id ${id} no encontrada`); return; }
     ok(res, solicitud);
   } catch (error) {
     res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno' } });
@@ -40,10 +42,10 @@ export const getSolicitudById = async (req: Request, res: Response): Promise<voi
 // POST /api/adopciones
 export const createSolicitud = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { animalId, vecinoRut, vecinoNombre, vecinoTelefono, motivo } = req.body;
+    const { animalId, vecinoTelefono, motivo } = req.body;
 
-    if (!animalId || !vecinoRut || !vecinoNombre || !vecinoTelefono || !motivo) {
-      badRequest(res, 'Faltan campos obligatorios', { required: ['animalId', 'vecinoRut', 'vecinoNombre', 'vecinoTelefono', 'motivo'] });
+    if (!animalId || !vecinoTelefono || !motivo) {
+      badRequest(res, 'Faltan campos obligatorios', { required: ['animalId', 'vecinoTelefono', 'motivo'] });
       return;
     }
 
@@ -54,12 +56,9 @@ export const createSolicitud = async (req: Request, res: Response): Promise<void
       return;
     }
 
-    const usuario = await prisma.usuario.findUnique({ where: { rut: vecinoRut } });
-    if (!usuario) { badRequest(res, `No existe un usuario con RUT ${vecinoRut}`); return; }
-
     const solicitud = await prisma.solicitudAdopcion.create({
       data: {
-        usuario_id: usuario.id,
+        usuario_id: parseInt(req.usuario!.sub),
         mascota_id: mascota.id,
         motivo,
         telefono: vecinoTelefono,
@@ -76,6 +75,7 @@ export const createSolicitud = async (req: Request, res: Response): Promise<void
 export const patchSolicitud = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
+    if (isNaN(id)) { badRequest(res, 'ID inválido'); return; }
     const existe = await prisma.solicitudAdopcion.findUnique({ where: { id } });
     if (!existe) { notFound(res, `Solicitud con id ${id} no encontrada`); return; }
 
@@ -107,6 +107,7 @@ export const patchSolicitud = async (req: Request, res: Response): Promise<void>
 export const deleteSolicitud = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
+    if (isNaN(id)) { badRequest(res, 'ID inválido'); return; }
     const existe = await prisma.solicitudAdopcion.findUnique({ where: { id } });
     if (!existe) { notFound(res, `Solicitud con id ${id} no encontrada`); return; }
     await prisma.solicitudAdopcion.delete({ where: { id } });

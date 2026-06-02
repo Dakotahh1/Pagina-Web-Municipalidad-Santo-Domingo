@@ -1,13 +1,17 @@
 import { Router } from 'express';
 import * as ctrl from '../controllers/operativosController';
+import { verifyJWT, requireRole } from '../middlewares/authMiddleware';
 
 const router = Router();
 
+// Lectura pública — vecinos necesitan ver operativos para inscribirse
 router.get   ('/',     ctrl.getOperativos);
 router.get   ('/:id',  ctrl.getOperativoById);
-router.post  ('/',     ctrl.createOperativo);
-router.put   ('/:id',  ctrl.replaceOperativo);
-router.patch ('/:id',  ctrl.patchOperativo);
-router.delete('/:id',  ctrl.deleteOperativo);
+
+// Gestión — solo funcionarios e inspectores
+router.post  ('/',     verifyJWT, requireRole(['funcionario', 'inspector']), ctrl.createOperativo);
+router.put   ('/:id',  verifyJWT, requireRole(['funcionario', 'inspector']), ctrl.replaceOperativo);
+router.patch ('/:id',  verifyJWT, requireRole(['funcionario', 'inspector']), ctrl.patchOperativo);
+router.delete('/:id',  verifyJWT, requireRole(['funcionario', 'inspector']), ctrl.deleteOperativo);
 
 export default router;

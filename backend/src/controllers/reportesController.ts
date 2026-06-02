@@ -23,11 +23,13 @@ export const getReportes = async (req: Request, res: Response): Promise<void> =>
 // GET /api/reportes/:id
 export const getReporteById = async (req: Request, res: Response): Promise<void> => {
   try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) { badRequest(res, 'ID inválido'); return; }
     const reporte = await prisma.reporte.findUnique({
-      where: { id: parseInt(req.params.id) },
+      where: { id },
       include: { usuario: { select: { nombre_completo: true, correo: true } } },
     });
-    if (!reporte) { notFound(res, `Reporte con id ${req.params.id} no encontrado`); return; }
+    if (!reporte) { notFound(res, `Reporte con id ${id} no encontrado`); return; }
     ok(res, reporte);
   } catch (error) {
     res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno' } });
@@ -37,10 +39,10 @@ export const getReporteById = async (req: Request, res: Response): Promise<void>
 // POST /api/reportes
 export const createReporte = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { vecinoRut, tipo, descripcion, ubicacion } = req.body;
+    const { tipo, descripcion, ubicacion } = req.body;
 
-    if (!vecinoRut || !tipo || !descripcion || !ubicacion) {
-      badRequest(res, 'Faltan campos obligatorios', { required: ['vecinoRut', 'tipo', 'descripcion', 'ubicacion'] });
+    if (!tipo || !descripcion || !ubicacion) {
+      badRequest(res, 'Faltan campos obligatorios', { required: ['tipo', 'descripcion', 'ubicacion'] });
       return;
     }
     const tiposValidos = ['Abandono', 'Animal herido', 'Mordedura', 'Tenencia irresponsable'];
@@ -53,16 +55,9 @@ export const createReporte = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // Buscar usuario por RUT para obtener el id
-    const usuario = await prisma.usuario.findUnique({ where: { rut: vecinoRut } });
-    if (!usuario) {
-      badRequest(res, `No existe un usuario con RUT ${vecinoRut}`);
-      return;
-    }
-
     const reporte = await prisma.reporte.create({
       data: {
-        usuario_id: usuario.id,
+        usuario_id: parseInt(req.usuario!.sub),
         tipo_incidente: tipo,
         descripcion,
         latitud: ubicacion.lat,
@@ -83,6 +78,7 @@ export const createReporte = async (req: Request, res: Response): Promise<void> 
 export const patchReporte = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
+    if (isNaN(id)) { badRequest(res, 'ID inválido'); return; }
     const existe = await prisma.reporte.findUnique({ where: { id } });
     if (!existe) { notFound(res, `Reporte con id ${id} no encontrado`); return; }
 
@@ -112,6 +108,7 @@ export const patchReporte = async (req: Request, res: Response): Promise<void> =
 export const deleteReporte = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
+    if (isNaN(id)) { badRequest(res, 'ID inválido'); return; }
     const existe = await prisma.reporte.findUnique({ where: { id } });
     if (!existe) { notFound(res, `Reporte con id ${id} no encontrado`); return; }
     await prisma.reporte.delete({ where: { id } });

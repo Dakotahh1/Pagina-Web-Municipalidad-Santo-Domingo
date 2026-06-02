@@ -22,11 +22,13 @@ export const getOperativos = async (req: Request, res: Response): Promise<void> 
 // GET /api/operativos/:id
 export const getOperativoById = async (req: Request, res: Response): Promise<void> => {
   try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) { badRequest(res, 'ID inválido'); return; }
     const operativo = await prisma.operativo.findUnique({
-      where: { id: parseInt(req.params.id) },
+      where: { id },
       include: { inscripciones: { include: { usuario: { select: { nombre_completo: true } } } } },
     });
-    if (!operativo) { notFound(res, `Operativo con id ${req.params.id} no encontrado`); return; }
+    if (!operativo) { notFound(res, `Operativo con id ${id} no encontrado`); return; }
     ok(res, operativo);
   } catch (error) {
     res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno' } });
@@ -66,6 +68,7 @@ export const createOperativo = async (req: Request, res: Response): Promise<void
 export const patchOperativo = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
+    if (isNaN(id)) { badRequest(res, 'ID inválido'); return; }
     const existe = await prisma.operativo.findUnique({ where: { id } });
     if (!existe) { notFound(res, `Operativo con id ${id} no encontrado`); return; }
 
@@ -88,6 +91,7 @@ export const patchOperativo = async (req: Request, res: Response): Promise<void>
 export const replaceOperativo = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
+    if (isNaN(id)) { badRequest(res, 'ID inválido'); return; }
     const { titulo, tipo, fecha, hora, ubicacion, cupos } = req.body;
     if (!titulo || !tipo || !fecha || !hora || !ubicacion || cupos === undefined) {
       badRequest(res, 'PUT requiere TODOS los campos del recurso');
@@ -110,6 +114,7 @@ export const replaceOperativo = async (req: Request, res: Response): Promise<voi
 export const deleteOperativo = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
+    if (isNaN(id)) { badRequest(res, 'ID inválido'); return; }
     const existe = await prisma.operativo.findUnique({ where: { id } });
     if (!existe) { notFound(res, `Operativo con id ${id} no encontrado`); return; }
     await prisma.operativo.delete({ where: { id } });

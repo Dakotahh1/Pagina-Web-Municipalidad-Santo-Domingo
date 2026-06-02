@@ -164,17 +164,18 @@ export const adminLogin = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
+    // Verificar contraseña ANTES de revelar el rol (evita enumeración de cuentas)
+    const passwordValida = await bcrypt.compare(password, usuario.password_hash);
+    if (!passwordValida) {
+      unauthorized(res, 'Credenciales inválidas');
+      return;
+    }
+
     if (usuario.rol.nombre === 'vecino') {
       res.status(403).json({
         success: false,
         error: { code: 'FORBIDDEN', message: 'Acceso denegado. Solo funcionarios municipales.' },
       });
-      return;
-    }
-
-    const passwordValida = await bcrypt.compare(password, usuario.password_hash);
-    if (!passwordValida) {
-      unauthorized(res, 'Credenciales inválidas');
       return;
     }
 

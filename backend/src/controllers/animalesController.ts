@@ -22,11 +22,13 @@ export const getAnimales = async (req: Request, res: Response): Promise<void> =>
 // GET /api/animales/:id
 export const getAnimalById = async (req: Request, res: Response): Promise<void> => {
   try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) { badRequest(res, 'ID inválido'); return; }
     const mascota = await prisma.mascota.findUnique({
-      where: { id: parseInt(req.params.id) },
+      where: { id },
     });
     if (!mascota) {
-      notFound(res, `Animal con id ${req.params.id} no encontrado`);
+      notFound(res, `Animal con id ${id} no encontrado`);
       return;
     }
     ok(res, mascota);
@@ -75,6 +77,7 @@ export const createAnimal = async (req: Request, res: Response): Promise<void> =
 export const patchAnimal = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
+    if (isNaN(id)) { badRequest(res, 'ID inválido'); return; }
     const existe = await prisma.mascota.findUnique({ where: { id } });
     if (!existe) {
       notFound(res, `Animal con id ${id} no encontrado`);
@@ -106,6 +109,7 @@ export const patchAnimal = async (req: Request, res: Response): Promise<void> =>
 export const replaceAnimal = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
+    if (isNaN(id)) { badRequest(res, 'ID inválido'); return; }
     const { nombre, especie, raza, sexo, edad } = req.body;
     if (!nombre || !especie || !raza || !sexo || edad === undefined) {
       badRequest(res, 'PUT requiere TODOS los campos del recurso');
@@ -128,6 +132,7 @@ export const replaceAnimal = async (req: Request, res: Response): Promise<void> 
 export const deleteAnimal = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
+    if (isNaN(id)) { badRequest(res, 'ID inválido'); return; }
     const existe = await prisma.mascota.findUnique({ where: { id } });
     if (!existe) { notFound(res, `Animal con id ${id} no encontrado`); return; }
     await prisma.mascota.delete({ where: { id } });
