@@ -1,88 +1,55 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   IonPage, IonContent, IonButton,
   IonGrid, IonRow, IonCol,
-  IonCard, IonCardContent, IonToast
+  IonCard, IonCardContent, IonToast, IonSpinner
 } from '@ionic/react';
 import NavBar from '../../components/NavBar';
 import RevealWrapper from '../../components/RevealWrapper';
+import { getAnimales, toCard, ApiError, type AnimalCard } from '../../services';
 
-/*página de adopciones. muestra un grid de animales disponibles con filtros por tipo y estado.
-  los datos de los animales están hardcodeados por ahora — cuando haya una api real,
-  el array `animales` se reemplaza por una llamada a fetch o un hook personalizado*/
+/* Página de adopciones (EP 2.4 — consumo de la API REST).
+   Obtiene el catálogo de animales en vivo desde el backend (GET /api/animales,
+   que lee desde PostgreSQL) y lo renderiza en una grilla con filtros por especie y
+   urgencia. Gestiona los estados de carga y de error de red de forma explícita. */
 
 const Adopciones: React.FC = () => {
+  const [animales, setAnimales] = useState<AnimalCard[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [errorCarga, setErrorCarga] = useState('');
+
   const [filtroActivo, setFiltroActivo] = useState<string>('Todos');
   const [showToast, setShowToast] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
 
   const mostrarToast = (msg: string) => { setToastMsg(msg); setShowToast(true); };
 
-  /*cada animal tiene un campo `tipo` para el filtrado y `urgente` que activa el borde azul.
-    los campos de tamaño y etapa se pueden agregar después para los filtros "pequeño" y "adulto"*/
-  const animales = [
-    {
-      id: 1, nombre: 'Camaron', tipo: 'Gato', urgente: false,
-      detalles: 'Gato mestizo   3 años   Macho',
-      etiquetas: ['Vacunado', 'Castrado'],
-      imagen: '/assets/camaron.jpg',
-      bordeAzul: false
-    },
-    {
-      id: 2, nombre: 'Kenai', tipo: 'Perro', urgente: false,
-      detalles: 'Perro mestizo   3 años   Macho',
-      etiquetas: ['Vacunado', 'Castrado'],
-      imagen: '/assets/kenai.jpg',
-      bordeAzul: false
-    },
-    {
-      id: 3, nombre: 'Leonidas', tipo: 'Perro', urgente: true,
-      detalles: 'Perro mestizo   3 años   Macho',
-      etiquetas: ['Vacunado', 'Castrado'],
-      imagen: '/assets/leonidas.jpg',
-      bordeAzul: true
-    },
-    {
-      id: 4, nombre: 'Yuumi', tipo: 'Gato', urgente: false,
-      detalles: 'Gata Tuxedo / 3 Meses / Hembra',
-      etiquetas: ['Vacunado'],
-      imagen: '/assets/yuumi.jpg',
-      bordeAzul: false
-    },
-    {
-      id: 5, nombre: 'Pana Miguel', tipo: 'Gato', urgente: false,
-      detalles: 'Gato mestizo / 3 años / Macho',
-      etiquetas: ['Vacunado', 'Castrado'],
-      imagen: '/assets/panamiguel.jpg',
-      bordeAzul: false
-    },
-    {
-      id: 6, nombre: 'Meperdonas', tipo: 'Gato', urgente: false,
-      detalles: 'Gato mestizo   3 años   Macho',
-      etiquetas: ['Vacunado', 'Castrado'],
-      imagen: '/assets/meperdonas.jpg',
-      bordeAzul: false
-    },
-  ];
+  // Carga el catálogo desde la API al montar la vista.
+  useEffect(() => {
+    let activo = true;
+    getAnimales()
+      .then(data => { if (activo) setAnimales(data.map(toCard)); })
+      .catch(err => {
+        if (activo) setErrorCarga(err instanceof ApiError ? err.message : 'Error al cargar el catálogo.');
+      })
+      .finally(() => { if (activo) setCargando(false); });
+    return () => { activo = false; };
+  }, []);
 
-  /*filtros disponibles. "todos" muestra todo, los demás filtran por tipo de animal o urgencia.
-    los filtros "pequeño" y "adulto" quedan como visual hasta que se agreguen esos campos a los datos*/
+  /*filtros disponibles. "todos" muestra todo, los demás filtran por especie o urgencia.*/
   const filtros = [
-    { label: 'Todos',    count: animales.length },
-    { label: 'Perros',   count: animales.filter(a => a.tipo === 'Perro').length },
-    { label: 'Gatos',    count: animales.filter(a => a.tipo === 'Gato').length  },
-    { label: 'Pequeño',  count: null }, //TODO: necesita campo tamano en los datos
-    { label: 'Adulto',   count: null }, //TODO: necesita campo etapa en los datos
-    { label: 'Urgente',  count: animales.filter(a => a.urgente).length },
+    { label: 'Todos',   count: animales.length },
+    { label: 'Perros',  count: animales.filter(a => a.tipo === 'Perro').length },
+    { label: 'Gatos',   count: animales.filter(a => a.tipo === 'Gato').length },
+    { label: 'Urgente', count: animales.filter(a => a.urgente).length },
   ];
 
   //aplica el filtro activo al array de animales
   const animalesFiltrados = animales.filter(a => {
-    if (filtroActivo === 'Todos')   return true;
     if (filtroActivo === 'Perros')  return a.tipo === 'Perro';
     if (filtroActivo === 'Gatos')   return a.tipo === 'Gato';
     if (filtroActivo === 'Urgente') return a.urgente;
-    return true; //filtros sin lógica aún (pequeño, adulto) muestran todos
+    return true; // "Todos"
   });
 
   return (
@@ -114,7 +81,6 @@ const Adopciones: React.FC = () => {
               <div className="flex flex-wrap gap-3">
                 {filtros.map((filtro, idx) => {
                   const isActive = filtroActivo === filtro.label;
-                  const texto = filtro.count !== null ? `${filtro.label} (${filtro.count})` : filtro.label;
                   return (
                     <button
                       key={idx}
@@ -126,7 +92,7 @@ const Adopciones: React.FC = () => {
                                     : 'bg-[#f3f4f6] border-[#d1d5db] text-black hover:bg-[#1a2b4a] hover:text-white hover:border-[#1a2b4a]'
                                   }`}
                     >
-                      {texto}
+                      {`${filtro.label} (${filtro.count})`}
                     </button>
                   );
                 })}
@@ -140,6 +106,30 @@ const Adopciones: React.FC = () => {
         {/*grid principal de tarjetas de animales*/}
         <div className="px-8 md:px-16 lg:px-24 pb-16">
           <div className="max-w-[1400px] mx-auto">
+
+            {/*estado de carga mientras llega la respuesta del backend*/}
+            {cargando && (
+              <div className="flex flex-col items-center justify-center py-20 gap-4">
+                <IonSpinner name="crescent" style={{ color: '#2d6aab' }} />
+                <p className="font-slab text-sm text-gray-500 m-0">Cargando catálogo...</p>
+              </div>
+            )}
+
+            {/*estado de error de red o servidor caído*/}
+            {!cargando && errorCarga && (
+              <div className="text-center py-20">
+                <p className="font-slab text-sm text-red-600 m-0">{errorCarga}</p>
+              </div>
+            )}
+
+            {/*catálogo vacío*/}
+            {!cargando && !errorCarga && animalesFiltrados.length === 0 && (
+              <div className="text-center py-20">
+                <p className="font-slab text-sm text-gray-500 m-0">No hay animales que coincidan con el filtro.</p>
+              </div>
+            )}
+
+            {!cargando && !errorCarga && animalesFiltrados.length > 0 && (
             <IonGrid className="ion-no-padding">
               <IonRow>
                 {animalesFiltrados.map((animal, idx) => {
@@ -161,7 +151,7 @@ const Adopciones: React.FC = () => {
                             style={{
                               '--background': tieneImagen ? 'transparent' : '#ffffff',
                               '--border-radius': '12px',
-                              border: animal.bordeAzul ? '2px solid #3b82f6' : 'none',
+                              border: animal.urgente ? '2px solid #3b82f6' : 'none',
                               backgroundImage: tieneImagen ? `url(${animal.imagen})` : 'none',
                               backgroundSize: 'cover',
                               backgroundPosition: 'center',
@@ -210,7 +200,7 @@ const Adopciones: React.FC = () => {
                                 {/*adoptar muestra un toast de confirmación*/}
                                 <IonButton
                                   className="m-0 flex-1"
-                                  onClick={() => mostrarToast(`solicitud de adopción para "${animal.nombre}" enviada. el equipo se pondrá en contacto contigo`)}
+                                  onClick={() => mostrarToast(`Solicitud de adopción para "${animal.nombre}" enviada. El equipo se pondrá en contacto contigo.`)}
                                   style={{ '--background': '#000000', '--color': '#ffffff', '--border-radius': '6px', height: '38px', '--box-shadow': 'none', fontFamily: "'Inter', sans-serif", fontWeight: 500, fontSize: '13px', textTransform: 'none' }}
                                 >
                                   Adoptar
@@ -225,6 +215,7 @@ const Adopciones: React.FC = () => {
                 })}
               </IonRow>
             </IonGrid>
+            )}
           </div>
         </div>
 

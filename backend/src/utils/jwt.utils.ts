@@ -1,4 +1,4 @@
-import jwt from 'jsonwebtoken';
+import jwt, { SignOptions } from 'jsonwebtoken';
 import { JwtPayload } from '../types/auth.types';
 
 //─────────────────────────────────────────────────────────────────────────────
@@ -18,10 +18,13 @@ Expira según JWT_EXPIRES_IN en .env (por defecto 8h).
 
  */
 export const generateToken = (payload: Omit<JwtPayload, 'iat' | 'exp'>): string => {
-  return jwt.sign(payload, getSecret(), {
-    expiresIn: (process.env.JWT_EXPIRES_IN || '8h') as string,
+  const options: SignOptions = {
+    // El cast es necesario: @types/jsonwebtoken tipa expiresIn como
+    // `number | StringValue`, y el valor llega como string desde el entorno.
+    expiresIn: (process.env.JWT_EXPIRES_IN || '8h') as SignOptions['expiresIn'],
     issuer: 'bienestar-animal-muni-sd',
-  });
+  };
+  return jwt.sign(payload, getSecret(), options);
 };
 
 /*

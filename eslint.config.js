@@ -5,7 +5,9 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
-  { ignores: ['dist', 'cypress.config.ts', 'cypress/**'] },
+  // El backend es un proyecto Node independiente con su propio tsconfig; el linter
+  // del frontend (con reglas de React) no debe analizarlo.
+  { ignores: ['dist', 'cypress.config.ts', 'cypress/**', 'backend/**'] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ['**/*.{ts,tsx}'],

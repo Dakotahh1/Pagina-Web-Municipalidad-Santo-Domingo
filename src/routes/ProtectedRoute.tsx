@@ -1,7 +1,12 @@
 import React from 'react';
 import { Redirect, Route, RouteProps } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
-import { UserRole } from '../context/AuthContext';
+import type { UserRole } from '../services/authService';
+
+/* Componente guardián de rutas protegidas en el frontend (EP 2.5).
+   - Sin sesión activa → redirige al login.
+   - Con sesión pero rol no autorizado → redirige a la zona ciudadana.
+   - Con sesión y rol permitido → renderiza la vista solicitada. */
 
 interface ProtectedRouteProps extends RouteProps {
   component: React.ComponentType<Record<string, unknown>>;

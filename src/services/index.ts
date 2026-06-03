@@ -1,11 +1,11 @@
-/*barrel export de todos los servicios.
-  centraliza los imports para que los componentes solo necesiten:
-  import { loginUser, getAnimales } from '../services';*/
+/* Barrel export de la capa de servicios.
+   Centraliza los imports para que los componentes solo necesiten, por ejemplo:
+   import { loginVecino, getAnimales } from '../services'; */
 
-export { loginUser, registerUser } from './authService';
-export type { LoginCredentials, RegisterData, AuthResponse } from './authService';
+export { apiRequest, ApiError, session, setUnauthorizedHandler } from './api';
 
-export { getAnimales, getFichaAnimal } from './animalesService';
-export type { Animal, FichaAnimal } from './animalesService';
+export { loginVecino, loginAdmin, registerVecino, fetchProfile } from './authService';
+export type { UserRole, AuthUser, LoginCredentials, RegisterData } from './authService';
 
-export { apiRequest, authService, reportesService, adopcionesService, operativosService, fichasService } from './api';
+export { getAnimales, getAnimalById, toCard } from './animalesService';
+export type { Animal, AnimalCard } from './animalesService';

@@ -1,14 +1,29 @@
-/*servicio de autenticación.
-  centraliza la lógica de login, registro y validación de credenciales.
-  por ahora usa datos locales — en la entrega parcial 2 se conectará con la API REST.
+/* Servicio de autenticación (EP 2.5).
+   Consume los endpoints reales de autenticación del backend Express + JWT.
+   Cada función devuelve el par { token, user } que la app guarda en sesión. */
 
-  estructura preparada para JWT: las funciones devuelven promesas como si fueran
-  llamadas HTTP, facilitando la migración al backend real*/
+import { apiRequest } from './api';
+
+/* Roles del sistema. Coinciden con los definidos en el backend (tabla Rol). */
+export type UserRole = 'vecino' | 'funcionario' | 'inspector';
+
+/* Usuario autenticado tal como lo devuelve el backend tras login/registro. */
+export interface AuthUser {
+  id: number;
+  nombre: string;
+  correo: string;
+  rol: UserRole;
+}
+
+/* Respuesta de los endpoints de autenticación: token firmado + perfil. */
+interface AuthData {
+  token: string;
+  user: AuthUser;
+}
 
 export interface LoginCredentials {
   email: string;
   password: string;
-  role: 'vecino' | 'funcionario';
 }
 
 export interface RegisterData {
@@ -20,38 +35,19 @@ export interface RegisterData {
   comuna: string;
 }
 
-export interface AuthResponse {
-  success: boolean;
-  message: string;
-  token?: string;
-}
+/* POST /api/auth/login — inicio de sesión de vecinos. */
+export const loginVecino = (credentials: LoginCredentials): Promise<AuthData> =>
+  apiRequest<AuthData>('/auth/login', { method: 'POST', body: credentials });
 
-/*simula un login contra el backend. en EP2 se reemplaza por fetch a /api/auth/login*/
-export const loginUser = async (credentials: LoginCredentials): Promise<AuthResponse> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      if (credentials.email && credentials.password) {
-        resolve({
-          success: true,
-          message: 'Inicio de sesión exitoso',
-          token: 'mock-jwt-token-' + Date.now(),
-        });
-      } else {
-        resolve({ success: false, message: 'Credenciales inválidas' });
-      }
-    }, 500);
-  });
-};
+/* POST /api/auth/admin-login — inicio de sesión de funcionarios e inspectores.
+   El backend rechaza con 403 a quien tenga rol 'vecino'. */
+export const loginAdmin = (credentials: LoginCredentials): Promise<AuthData> =>
+  apiRequest<AuthData>('/auth/admin-login', { method: 'POST', body: credentials });
 
-/*simula un registro de vecino. en EP2 se reemplaza por fetch a /api/auth/register*/
-export const registerUser = async (data: RegisterData): Promise<AuthResponse> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      if (data.correo && data.password && data.rut) {
-        resolve({ success: true, message: 'Registro exitoso' });
-      } else {
-        resolve({ success: false, message: 'Datos incompletos' });
-      }
-    }, 500);
-  });
-};
+/* POST /api/auth/register — registro de un nuevo vecino. Devuelve sesión iniciada. */
+export const registerVecino = (data: RegisterData): Promise<AuthData> =>
+  apiRequest<AuthData>('/auth/register', { method: 'POST', body: data });
+
+/* GET /api/auth/me — perfil del usuario dueño del token en sesión (ruta protegida). */
+export const fetchProfile = (): Promise<AuthUser & { region: string; comuna: string }> =>
+  apiRequest('/auth/me');

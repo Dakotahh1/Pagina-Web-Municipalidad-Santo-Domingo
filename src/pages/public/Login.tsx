@@ -1,40 +1,49 @@
 import React, { useState } from 'react';
-import { IonButton, IonInput } from '@ionic/react';
+import { IonButton, IonInput, IonToast } from '@ionic/react';
 import { useHistory } from 'react-router-dom';
 import { useAuth } from '../../context/useAuth';
-import { UserRole } from '../../context/AuthContext';
-import { loginUser } from '../../services/authService';
+import type { UserRole } from '../../context/AuthContext';
+import { loginVecino, loginAdmin } from '../../services/authService';
+import { ApiError } from '../../services/api';
 import { AuthLayout, PasswordInput, FormField, SupportNote, AuthFooter } from '../../components';
 import { authInputStyle } from '../../components/styles';
 
-/*página de login. usa los componentes reutilizables AuthLayout y AuthHeroPanel
-  para mantener consistencia visual con la página de registro.
-
-  el login diferencia entre vecino y funcionario mediante los selectores de rol.
-  al autenticarse, el contexto guarda el rol y la ruta protegida redirige según corresponda*/
+/* Página de login (EP 2.5).
+   Autentica contra el backend real: los vecinos por /api/auth/login y el personal
+   municipal por /api/auth/admin-login. El rol efectivo lo determina el servidor a
+   partir de la base de datos (no se confía en la selección del cliente). Al
+   autenticarse se guarda el JWT en sesión y se redirige según el rol devuelto. */
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
+  // El selector solo decide qué endpoint usar; el rol real lo confirma el backend.
   const [rolAcceso, setRolAcceso] = useState<UserRole>('vecino');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const { login } = useAuth();
   const history = useHistory();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     setLoading(true);
-    const response = await loginUser({ email, password, role: rolAcceso! });
-    setLoading(false);
+    try {
+      const data =
+        rolAcceso === 'vecino'
+          ? await loginVecino({ email, password })
+          : await loginAdmin({ email, password });
 
-    if (response.success) {
-      login(rolAcceso);
-      if (rolAcceso === 'funcionario') {
-        history.push('/admin/dashboard');
-      } else {
-        history.push('/app/inicio');
-      }
+      // Guarda el token JWT + perfil en el contexto y localStorage.
+      login(data.token, data.user);
+
+      // Redirige según el rol confirmado por el servidor.
+      history.replace(data.user.rol === 'vecino' ? '/app/inicio' : '/admin/dashboard');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'No se pudo iniciar sesión. Intenta nuevamente.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -85,9 +94,9 @@ const Login: React.FC = () => {
         {/*formulario de ingreso*/}
         <form onSubmit={handleLogin} className="bg-white border border-gray-200 rounded-[16px] p-8 shadow-[0_8px_30px_rgba(0,0,0,0.06)]">
 
-          <FormField label="RUT o Correo Electrónico" className="mb-6">
+          <FormField label="Correo Electrónico" className="mb-6">
             <IonInput
-              type="text"
+              type="email"
               value={email}
               onIonChange={e => setEmail(e.detail.value!)}
               required
@@ -131,6 +140,16 @@ const Login: React.FC = () => {
       </div>
 
       <AuthFooter />
+
+      {/*notificación de error de autenticación devuelto por el backend*/}
+      <IonToast
+        isOpen={Boolean(error)}
+        onDidDismiss={() => setError('')}
+        message={error}
+        duration={3500}
+        position="top"
+        color="danger"
+      />
     </AuthLayout>
   );
 };

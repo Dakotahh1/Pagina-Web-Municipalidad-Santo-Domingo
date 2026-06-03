@@ -1,0 +1,175 @@
+{
+  "info": {
+    "name": "Bienestar Animal - Municipalidad de Santo Domingo",
+    "description": "Colección de pruebas funcionales de la API REST (EP 2.7). Importar en Postman, levantar el backend (http://localhost:3001) y ejecutar las carpetas en orden. La petición 'Login Funcionario' guarda el token automáticamente en la variable de colección {{token}}.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3001/api" },
+    { "key": "token", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Autenticación",
+      "item": [
+        {
+          "name": "Login Vecino (POST /auth/login)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"vecino@muni.cl\",\n  \"password\": \"vecino123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login Funcionario (POST /auth/admin-login)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.expect(json.success).to.be.true;",
+                  "pm.collectionVariables.set('token', json.data.token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/auth/admin-login", "host": ["{{baseUrl}}"], "path": ["auth", "admin-login"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"funcionario@muni.cl\",\n  \"password\": \"func456#\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Registro Vecino (POST /auth/register)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/auth/register", "host": ["{{baseUrl}}"], "path": ["auth", "register"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Nuevo Vecino\",\n  \"rut\": \"11.111.111-1\",\n  \"correo\": \"nuevo@muni.cl\",\n  \"password\": \"clave1234\",\n  \"region\": \"Valparaíso\",\n  \"comuna\": \"Santo Domingo\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Perfil con token válido (GET /auth/me)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": ["pm.test('Status 200', () => pm.response.to.have.status(200));"],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/auth/me", "host": ["{{baseUrl}}"], "path": ["auth", "me"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Pruebas de Seguridad",
+      "item": [
+        {
+          "name": "Bloqueo sin token (GET /auth/me → 401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": ["pm.test('Status 401', () => pm.response.to.have.status(401));"],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/auth/me", "host": ["{{baseUrl}}"], "path": ["auth", "me"] }
+          }
+        },
+        {
+          "name": "Token inválido (GET /auth/me → 401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": ["pm.test('Status 401', () => pm.response.to.have.status(401));"],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer tokenbasura123" }],
+            "url": { "raw": "{{baseUrl}}/auth/me", "host": ["{{baseUrl}}"], "path": ["auth", "me"] }
+          }
+        },
+        {
+          "name": "Rol insuficiente (GET /auth/inspector/chips → 403)",
+          "description": "Con un token de FUNCIONARIO se intenta acceder a un recurso exclusivo de inspector. El token es válido (pasa el 401) pero el rol es rechazado con 403.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": ["pm.test('Status 403', () => pm.response.to.have.status(403));"],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/auth/inspector/chips", "host": ["{{baseUrl}}"], "path": ["auth", "inspector", "chips"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Animales",
+      "item": [
+        {
+          "name": "Listar animales (GET /animales)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Devuelve un arreglo', () => pm.expect(pm.response.json().data).to.be.an('array'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/animales", "host": ["{{baseUrl}}"], "path": ["animales"] }
+          }
+        },
+        {
+          "name": "Obtener animal por id (GET /animales/1)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/animales/1", "host": ["{{baseUrl}}"], "path": ["animales", "1"] }
+          }
+        }
+      ]
+    }
+  ]
+}

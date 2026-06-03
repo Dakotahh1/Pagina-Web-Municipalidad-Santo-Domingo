@@ -52,12 +52,12 @@ const App: React.FC = () => (
             MainTabs maneja el sub-enrutamiento con IonTabs*/}
           <ProtectedRoute path="/app" component={MainTabs} />
 
-          {/*rutas protegidas del funcionario — requieren rol funcionario*/}
+          {/*rutas protegidas del panel de gestión — requieren rol funcionario o inspector*/}
           <ProtectedRoute
             exact
             path="/admin/dashboard"
             component={InspectorDashboard}
-            allowedRoles={['funcionario']}
+            allowedRoles={['funcionario', 'inspector']}
           />
 
         </IonRouterOutlet>

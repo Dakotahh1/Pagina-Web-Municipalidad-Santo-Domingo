@@ -7,36 +7,68 @@ Esta aplicación es una plataforma desarrollada para la Municipalidad de Santo D
 
 ---
 
-## Requisitos e Instalación (Solución a Conflicto de Dependencias)
-
-> ⚠️ **NOTA CRÍTICA DE INSTALACIÓN:** Debido a que el entorno utiliza configuraciones de vanguardia basadas en **Vite 8.0**, y ciertos plugins internos de Ionic y Vitest mantienen dependencias de revisión previas, el gestor de paquetes de Node (`npm`) podría interrumpir la instalación por conflictos de pares (`ERRESOLVE`). 
->
-> Para asegurar una compilación limpia y exitosa sin alterar el árbol lógico del proyecto, **es estrictamente obligatorio ejecutar la instalación utilizando la bandera de compatibilidad heredada**.
-
-
-
 ## Tecnologías Utilizadas
 
 | Capa | Tecnología |
 |------|-----------|
-| Framework UI | Ionic Framework + React 18 |
+| Framework UI | Ionic Framework + React 19 |
 | Lenguaje | TypeScript |
-| Build Tool | Vite |
+| Build Tool | Vite 7 |
 | Estilos | Tailwind CSS v4 |
-| Enrutamiento | React Router DOM |
-| Testing E2E | Cypress |
+| Enrutamiento | React Router v5 (vía `@ionic/react-router`) |
+| Backend | Node.js + Express + TypeScript |
+| Base de datos / ORM | PostgreSQL + Prisma |
+| Autenticación | JWT (`jsonwebtoken`) + bcrypt |
+| Pruebas de API | Postman |
 
 ## Requisitos e Instalación
 
-Para ejecutar este proyecto localmente, necesitas tener instalado Node.js y el CLI de Ionic.
+### Requisitos previos
 
-1. Clonar el repositorio:
-   ```bash
-   git clone [https://github.com/Dakotahh1/Pagina-Web-Municipalidad-Santo-Domingo.git](https://github.com/Dakotahh1/Pagina-Web-Municipalidad-Santo-Domingo.git)
+- **Node.js 18+** y npm.
+- **PostgreSQL 14+** en ejecución (para el backend).
+- *(Opcional)* CLI de Ionic: `npm install -g @ionic/cli`.
 
-2. Desplazarse a la raiz del proyecto cd Pagina-Web-Municipalidad-Santo-Domingo
-3. Instalar dependencia omitiendo el bloqueo de pares (Resolucion del error del entorno) : `npm install --legacy-peer-deps`
-4. Levantar el servidor de desarrollo: `ionic serve`
+El proyecto tiene dos partes: el **backend** (`/backend`) y el **frontend** (raíz). Para
+probar la aplicación completa con autenticación, levanta primero el backend.
+
+### 1. Clonar el repositorio
+
+```bash
+git clone https://github.com/Dakotahh1/Pagina-Web-Municipalidad-Santo-Domingo.git
+cd Pagina-Web-Municipalidad-Santo-Domingo
+```
+
+### 2. Backend (API REST + base de datos)
+
+```bash
+cd backend
+npm install                 # instala dependencias
+cp .env.example .env         # crea el archivo de entorno (ajusta DATABASE_URL y JWT_SECRET)
+npx prisma migrate dev       # crea las tablas en PostgreSQL
+npm run seed                 # carga roles, usuarios y datos de prueba
+npm run dev                  # levanta la API en http://localhost:3001
+```
+
+### 3. Frontend (Ionic + React)
+
+En **otra terminal**, desde la raíz del proyecto:
+
+```bash
+npm install                  # instalación limpia, sin flags adicionales
+npm run dev                  # o `ionic serve` — abre http://localhost:5173 (8100 con Ionic CLI)
+```
+
+> El frontend lee la URL de la API desde `VITE_API_URL` (ver `.env.example`).
+> Por defecto apunta a `http://localhost:3001/api`.
+
+### Usuarios de prueba (cargados por el seed)
+
+| Correo | Contraseña | Rol |
+| :--- | :--- | :--- |
+| `vecino@muni.cl` | `vecino123` | Vecino |
+| `funcionario@muni.cl` | `func456#` | Funcionario |
+| `inspector@muni.cl` | `insp789#` | Inspector |
 
 ---
 
@@ -53,6 +85,24 @@ Actualmente, el municipio gestiona estos problemas de manera informal (registros
 2. Imposibilidad de generar estadísticas consolidadas para justificar la inyección de presupuestos estatales.
 
 3. Respuestas tardías ante emergencias ciudadanas debido a la falta de centralización de la información.
+
+### Análisis del Usuario Objetivo
+
+La plataforma atiende a dos perfiles claramente diferenciados. Para cada uno se identifican sus características, necesidades, dificultades y expectativas:
+
+#### Perfil 1 — Vecino / Ciudadano
+
+- **Características:** habitante de la comuna de Santo Domingo, de edad heterogénea (incluye adultos mayores), con alfabetización digital media-baja y acceso mayoritariamente desde el teléfono móvil, frecuentemente bajo conectividad 3G/4G inestable en zonas rurales.
+- **Necesidades:** reportar de forma rápida y guiada animales abandonados o heridos, dar seguimiento al estado de sus reportes, postular a adopciones e inscribirse en operativos de vacunación/esterilización cercanos.
+- **Dificultades:** hoy depende de canales informales (WhatsApp, llamadas, papel) sin trazabilidad ni respuesta clara; interfaces complejas o densas lo excluyen.
+- **Expectativas:** un flujo simple "paso a paso", botones grandes y legibles, confirmación visible de cada acción y un número de caso para hacer seguimiento.
+
+#### Perfil 2 — Funcionario / Inspector Municipal
+
+- **Características:** personal de la Unidad de Bienestar Animal que trabaja principalmente desde un computador de escritorio en oficina, con alfabetización digital media-alta y necesidad de operar volúmenes de datos.
+- **Necesidades:** centralizar reportes, gestionar fichas clínicas y microchips, programar operativos, emitir multas y visualizar indicadores (KPIs) para justificar presupuesto ante el Estado.
+- **Dificultades:** la información dispersa impide consolidar estadísticas, perder trazabilidad de brotes zoonóticos y priorizar casos urgentes.
+- **Expectativas:** un panel de gestión tipo escritorio (tablas, formularios técnicos y métricas) separado de la vista ciudadana, con accesos diferenciados según el nivel de privilegio (funcionario vs. inspector).
 
 ---
 
@@ -233,12 +283,67 @@ flowchart TD
     style REDIRECT fill:#b01717,color:#fff
 ```
 
+### Flujo de Tarea Secundaria — Solicitar una Adopción
+
+Segundo flujo crítico del rol Vecino. Convierte la exploración del catálogo en una solicitud trazable para el funcionario.
+
+```mermaid
+flowchart TD
+    A([Vecino en Adopciones]) --> B[Filtra por especie / urgencia]
+    B --> C[Abre la ficha del animal]
+    C --> D{¿Sesión iniciada?}
+    D -->|No| E[Redirige a Inicio de Sesión]
+    E --> F[Se autentica]
+    D -->|Sí| G[Presiona Solicitar]
+    F --> G
+    G --> H[Completa motivo y teléfono]
+    H --> I([Solicitud enviada - queda en lista de espera])
+    I --> J[Funcionario revisa y aprueba/rechaza]
+
+    style A fill:#2d6aab,color:#fff
+    style I fill:#16a34a,color:#fff
+    style D fill:#f5a623,stroke:#c67c00,color:#111
+    style E fill:#b01717,color:#fff
+```
+
+### Puntos Críticos de Interacción
+
+Se identifican los momentos donde el usuario puede abandonar la tarea o cometer errores, y la mitigación adoptada:
+
+| Punto crítico | Riesgo | Mitigación de diseño |
+|---|---|---|
+| Reporte de incidente urgente | Fricción/abandono ante una emergencia | Asistente paso a paso con un solo objetivo por pantalla |
+| Acción que exige sesión (reportar, adoptar) | Pérdida del contexto al redirigir al login | Redirección con retorno al flujo original tras autenticarse |
+| Inscripción a operativo con cupos | Inscribirse en un evento ya lleno | Decremento atómico de cupos y bloqueo del botón al llegar a 0 |
+| Envío de formularios (registro, ficha) | Datos inválidos o incompletos | Validaciones visuales en cliente + validación en backend |
+| Cambio de zona ciudadana ↔ panel admin | Acceso a vistas sin privilegios | Guardas de ruta (`ProtectedRoute`) que redirigen según el rol |
+
+### Coherencia de Experiencia entre Dispositivos
+
+La arquitectura mantiene el mismo modelo mental en móvil y escritorio, adaptando solo el patrón de navegación al contexto de uso:
+
+| Aspecto | Móvil (Vecino) | Escritorio (Funcionario / Inspector) |
+|---|---|---|
+| Navegación principal | Barra inferior (`IonTabs`) para uso con una mano | Sidebar lateral fijo (`IonMenu`) que aprovecha el ancho |
+| Densidad de información | Tarjetas apiladas en una columna | Tablas y KPIs en grilla multicolumna |
+| Acciones primarias | Botones expansivos de alto contraste | Botones y filas de tabla con estados *hover* |
+| Continuidad | Mismas rutas, etiquetas e iconografía en ambos formatos, de modo que la curva de aprendizaje se traslada entre dispositivos |
+
 ### Decisiones de Diseño Justificadas
 
 **Navegación Fija mediante Sidebar en Computadores:** Para el rol Funcionario se optó por un menú lateral izquierdo permanente. Esto aprovecha el ancho panorámico de los monitores de oficina de la municipalidad, manteniendo visibles los accesos directos y reduciendo el número de clics necesarios para alternar entre la gestión de fichas clínicas y la emisión de multas.
 - **Separación visual total entre zona ciudadana y panel administrativo:** Los funcionarios requieren flujos de trabajo distintos (tablas, KPIs, formularios técnicos) que no son apropiados para el vecino.
 - **Diseño responsivo diferenciado:** En escritorio (Funcionario) se emplea un Sidebar para aprovechar el ancho de pantalla. En móvil (Vecino) la navegación usa Bottom Tabs para acceso con una sola mano.
 - **Framework Arquitectónico (Ionic + React):** La selección técnica responde directamente a la necesidad de construir una Single Page Application (SPA) altamente escalable. Al compilar sobre componentes nativos web optimizados, eliminamos la necesidad de descargas pesadas desde tiendas de aplicaciones, permitiendo a los ciudadanos rurales acceder instantáneamente escaneando códigos QR distribuidos en las juntas de vecinos de la comuna.
+
+### Referencias de Diseño
+
+Las decisiones anteriores se sustentan en principios reconocidos de usabilidad y accesibilidad:
+
+- **Heurísticas de Nielsen:** "visibilidad del estado del sistema" (confirmaciones y número de caso en cada acción) y "prevención de errores" (validaciones y bloqueo de acciones inválidas).
+- **WCAG 2.1 AA:** contraste mínimo 4.5:1 y áreas táctiles ≥ 48px, justificando los botones expansivos para adultos mayores (ver RNF-01).
+- **Mobile-first y diseño adaptativo de Ionic:** patrones de navegación distintos por dispositivo (`IonTabs` en móvil, `IonMenu` en escritorio) siguiendo la documentación oficial de Ionic Framework.
+- **Ley de Fitts:** objetivos de interacción grandes y bien separados reducen el tiempo y el error al apuntar, especialmente en pantallas táctiles.
 
 ---
 
@@ -251,36 +356,54 @@ A continuación, se documenta la disposición real del código fuente dentro del
 
 ```text
 src/
-├── assets/              # Recursos estáticos (Logotipos comunales, íconos y multimedia)
-├── components/          # Componentes visuales reutilizables u organizadores
-│   ├── AuthFooter.tsx   # Pie de página unificado para los formularios de credenciales
-│   ├── AuthLayout.tsx   # Contenedor estructural semántico de autenticación
-│   ├── FormField.tsx    # Abstracción de campos de texto con validaciones integradas
-│   ├── PasswordInput.tsx# Input dinámico optimizado para contraseñas con máscara oculta
-│   └── SupportNote.tsx  # Notas y advertencias de accesibilidad al pie de los flujos
-├── context/             # Manejo del estado global de la aplicación
-│   └── AuthContext.tsx  # Proveedor de sesión (Persistencia de tokens JWT y roles)
-├── hooks/               # Custom hooks reutilizables para modularizar lógica
-├── pages/               # Vistas completas de la plataforma segregadas por nivel de acceso
-│   ├── private/         # Módulos privados restringidos bajo Guardas de Seguridad
-│   │   ├── InspectorDashboard.tsx # Panel administrativo para Funcionarios/Inspectores
-│   │   └── MainTabs.tsx # Navegación móvil mediante pestañas para el rol Vecino
-│   └── public/          # Módulos de acceso ciudadano libre
-│       ├── Login.tsx    # Formulario de inicio de sesión comunal
-│       └── Registro.tsx # Formulario de inscripción y validación de datos del Vecino
-├── routes/              # Capa de control de flujos perimetrales
-│   └── ProtectedRoute.tsx # Componente interceptor para la validación de roles en sesión
-├── services/            # Servicios asíncronos de conexión con la API REST
-│   └── authService.ts   # Control de peticiones HTTP (Fetch/Axios) para login y registro
-├── theme/               # Estilos globales y paleta de colores del Framework
-│   └── variables.css    # Definición de variables CSS institucionales de Santo Domingo
-├── utils/               # Funciones utilitarias secundarias y formateadores
-├── App.tsx              # Orquestador del enrutamiento de la Single Page Application (SPA)
-├── index.css            # Hoja de estilos globales inyectada por Tailwind / CSS nativo
-├── main.tsx             # Punto de entrada lógico del compilador e hilo de ejecución en el DOM
-└── vite-env.d.ts        # Definiciones de tipos globales del entorno de Vite
+├── components/             # Componentes visuales reutilizables
+│   ├── AuthLayout.tsx      # Contenedor de las pantallas de autenticación
+│   ├── AuthHeroPanel.tsx   # Panel lateral con estadísticas (login/registro)
+│   ├── AuthFooter.tsx      # Pie de página de los formularios de credenciales
+│   ├── FormField.tsx       # Campo de formulario con etiqueta y validación visual
+│   ├── PasswordInput.tsx   # Input de contraseña con máscara y botón mostrar/ocultar
+│   ├── NavBar.tsx          # Barra de navegación superior de las vistas del vecino
+│   ├── RevealWrapper.tsx   # Animación de aparición progresiva al hacer scroll
+│   ├── SupportNote.tsx     # Nota de soporte/accesibilidad al pie de los flujos
+│   ├── styles.ts           # Estilos compartidos de los formularios
+│   └── index.ts            # Barrel export de componentes
+├── context/                # Estado global de la aplicación
+│   ├── AuthContext.tsx     # Proveedor de sesión JWT (token + rol, persistencia)
+│   └── useAuth.ts          # Hook de acceso al contexto de autenticación
+├── pages/                  # Vistas, segregadas por nivel de acceso
+│   ├── private/            # Rutas protegidas (requieren sesión)
+│   │   ├── MainTabs.tsx        # Contenedor IonTabs de la zona ciudadana (vecino)
+│   │   ├── Inicio.tsx          # Portada autenticada del vecino
+│   │   ├── adopciones.tsx      # Catálogo de adopciones (consume GET /api/animales)
+│   │   ├── FichaAnimal.tsx     # Detalle de un animal
+│   │   ├── foro.tsx            # Foro vecinal
+│   │   ├── operativos.tsx      # Operativos territoriales
+│   │   ├── ReportarIncidente.tsx # Asistente de reporte ciudadano
+│   │   ├── MapaReportes.tsx    # Mapa de calor de reportes
+│   │   ├── Directorio.tsx      # Directorio de contactos
+│   │   └── InspectorDashboard.tsx # Panel de gestión (funcionario / inspector)
+│   └── public/             # Rutas públicas (sin sesión)
+│       ├── Login.tsx       # Inicio de sesión (vecino y personal municipal)
+│       └── Registro.tsx    # Registro de vecinos
+├── routes/                 # Control de acceso por rol
+│   └── ProtectedRoute.tsx  # Guardián de rutas: valida sesión y rol (integrado en App.tsx)
+├── services/               # Capa de consumo de la API REST (EP 2.4)
+│   ├── api.ts              # Cliente HTTP con interceptores y gestión de token JWT
+│   ├── authService.ts      # Endpoints de autenticación (login, admin-login, register)
+│   ├── animalesService.ts  # Endpoints de animales (GET /api/animales)
+│   └── index.ts            # Barrel export de servicios
+├── theme/
+│   └── variables.css       # Variables CSS institucionales + import de Tailwind
+├── App.tsx                 # Enrutamiento de la SPA (rutas públicas y protegidas)
+├── main.tsx                # Punto de entrada (monta React en el DOM)
+└── vite-env.d.ts           # Tipos del entorno de Vite
 ```
----
+
+> **Integración del enrutador (corrección EP 1.6):** `ProtectedRoute` se consume
+> directamente desde `App.tsx`, envolviendo las rutas `/app/*` (vecino) y
+> `/admin/dashboard` (funcionario/inspector), de modo que la capa de rutas queda
+> efectivamente integrada y no como un archivo aislado.
+
 ---
 
 # Entrega Parcial 2: Integración Frontend + Backend y Autenticación
@@ -411,9 +534,9 @@ Cada endpoint y middleware de control de accesos fue sometido a pruebas funciona
 
 | Nombre | Rol |
 |--------|-----|
-| Vicente Palma | Desarrollador Frontend, Documentación |
+| Vicente Palma | Desarrollador Frontend y Backend, Documentación |
 | Diego Alvarado | Aquitectura y Diseño UI/UX, Desarrollador Frontend |
-| Ignacia Brahim | Documentación, Aquitectura y Diseño UI/UX  |
+| Ignacia Brahim | Documentación, Desarrolladora Backend, Aquitectura y Diseño UI/UX  |
 
 ---
 

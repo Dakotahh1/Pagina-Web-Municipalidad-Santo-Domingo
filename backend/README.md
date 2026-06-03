@@ -7,13 +7,16 @@ Desarrollado con Node.js + Express + TypeScript.
 
 - Node.js 18 o superior
 - npm 9 o superior
+- PostgreSQL 14 o superior en ejecución
 
 ## Instalación
 
 ```bash
 cd backend
 npm install
-cp .env.example .env
+cp .env.example .env          # completa DATABASE_URL y JWT_SECRET
+npx prisma migrate dev         # crea las tablas en PostgreSQL
+npm run seed                   # carga roles, usuarios y datos de prueba
 ```
 
 ## Ejecución
@@ -35,14 +38,18 @@ El servidor corre en `http://localhost:3001` por defecto.
 
 ```
 src/
-├── server.ts                ← punto de entrada
-├── app.ts                   ← configuración Express
-├── types/index.ts           ← interfaces TypeScript
-├── utils/responseHelper.ts  ← helpers para respuestas JSON
-├── middlewares/             ← logger y manejo de errores
-├── data/mockData.ts         ← datos en memoria (EP 2.2 → BD real)
+├── server.ts                ← punto de entrada (arranca el servidor)
+├── app.ts                   ← configuración de Express, CORS y montaje de rutas
+├── lib/prismaClient.ts      ← cliente Prisma (singleton)
+├── types/                   ← interfaces TypeScript (auth, sobre de respuesta)
+├── utils/                   ← helpers de respuestas JSON y utilidades JWT
+├── middlewares/             ← verifyJWT, requireRole, logger y manejo de errores
 ├── controllers/             ← lógica de cada endpoint
 └── routes/                  ← definición de rutas REST
+prisma/
+├── schema.prisma            ← modelo relacional (PostgreSQL)
+├── migrations/              ← migraciones generadas
+└── seed.ts                  ← datos de inicialización (roles, usuarios, mascotas, etc.)
 ```
 
 ## Endpoints
@@ -72,8 +79,12 @@ src/
 | PUT    | /api/operativos/:id       | Reemplazo completo                  |
 | PATCH  | /api/operativos/:id       | Actualización parcial               |
 | DELETE | /api/operativos/:id       | Elimina operativo                   |
-| POST   | /api/auth/login           | Inicio de sesión                    |
-| POST   | /api/auth/register        | Registro de usuario                 |
+| POST   | /api/auth/login           | Inicio de sesión (vecino)           |
+| POST   | /api/auth/register        | Registro de vecino                  |
+| POST   | /api/auth/admin-login     | Inicio de sesión (funcionario/inspector) |
+| GET    | /api/auth/me              | Perfil del token en sesión (protegido)   |
+| GET    | /api/auth/admin/panel     | Panel de gestión (funcionario/inspector) |
+| GET    | /api/auth/inspector/chips | Control de chips (solo inspector)        |
 
 ## Estructura de respuesta
 
@@ -103,9 +114,14 @@ Error:
 - `409` Conflict — conflicto con estado actual del recurso
 - `500` Internal Server Error — error del servidor
 
-## Próximas entregas
+## Seguridad implementada (EP 2.5 y 2.6)
 
-- EP 2.2 → migrar `data/mockData.ts` a PostgreSQL/MySQL
-- EP 2.5 → implementar JWT en `authController.ts`
-- EP 2.6 → hashear contraseñas con bcrypt
-- EP 2.7 → documentación Postman/Insomnia y evidencia de pruebas
+- **Persistencia real (EP 2.2):** PostgreSQL con Prisma ORM (`prisma/schema.prisma`).
+- **Autenticación JWT (EP 2.5):** firma HS256 con expiración configurable; rutas
+  protegidas mediante el middleware `verifyJWT`.
+- **Diferenciación por roles (EP 2.5):** middleware `requireRole` para `vecino`,
+  `funcionario` e `inspector`.
+- **Contraseñas con bcrypt (EP 2.6):** hash con 10 *salt rounds*; nunca se almacenan
+  ni viajan en texto plano.
+- **Anti-inyección SQL (EP 2.6):** consultas parametrizadas a través de Prisma.
+- **Validación de inputs (EP 2.6):** formato de RUT, correo y longitud de contraseña.

@@ -1,15 +1,31 @@
 import React, { useState } from 'react';
 import {
-  IonInput, IonButton, IonSelect, IonSelectOption, IonCheckbox, IonLabel
+  IonInput, IonButton, IonSelect, IonSelectOption, IonCheckbox, IonLabel, IonToast
 } from '@ionic/react';
 import { useHistory } from 'react-router-dom';
-import { registerUser } from '../../services/authService';
+import { useAuth } from '../../context/useAuth';
+import { registerVecino } from '../../services/authService';
+import { ApiError } from '../../services/api';
 import { AuthLayout, FormField, PasswordInput, SupportNote, AuthFooter } from '../../components';
 import { authInputStyle } from '../../components/styles';
 
-/*página de registro de vecinos. usa los componentes reutilizables AuthLayout y AuthHeroPanel.
-  incluye todos los campos requeridos por EP 1.3:
-  nombre, RUT, correo, contraseña, confirmación, región, comuna, términos y condiciones*/
+/* Página de registro de vecinos (EP 2.5 / 2.6).
+   Incluye todos los campos requeridos por EP 1.3 (nombre, RUT, correo, contraseña,
+   confirmación, región, comuna, términos). Valida la coincidencia de contraseñas en
+   el cliente y delega el resto de validaciones (formato de RUT, correo, hash bcrypt)
+   al backend. Tras un registro exitoso inicia sesión automáticamente. */
+
+// Mapea los valores de los selects a los nombres legibles que persiste el backend.
+const REGIONES: Record<string, string> = {
+  valparaiso: 'Valparaíso',
+  metropolitana: 'Metropolitana',
+  ohiggins: "O'Higgins",
+};
+const COMUNAS: Record<string, string> = {
+  'santo-domingo': 'Santo Domingo',
+  'san-antonio': 'San Antonio',
+  cartagena: 'Cartagena',
+};
 
 const Registro: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -17,6 +33,8 @@ const Registro: React.FC = () => {
     region: '', comuna: '', terminos: false, novedades: false
   });
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const { login } = useAuth();
   const history = useHistory();
 
   const handleChange = (field: string, value: string | boolean) => {
@@ -25,18 +43,40 @@ const Registro: React.FC = () => {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+
+    // Validaciones visuales en el cliente antes de llamar al backend.
+    if (!formData.region || !formData.comuna) {
+      setError('Selecciona tu región y comuna.');
+      return;
+    }
+    if (formData.password.length < 8) {
+      setError('La contraseña debe tener al menos 8 caracteres.');
+      return;
+    }
+    if (formData.password !== formData.confirmPassword) {
+      setError('Las contraseñas no coinciden.');
+      return;
+    }
+
     setLoading(true);
-    const response = await registerUser({
-      nombre: formData.nombre,
-      rut: formData.rut,
-      correo: formData.correo,
-      password: formData.password,
-      region: formData.region,
-      comuna: formData.comuna,
-    });
-    setLoading(false);
-    if (response.success) {
-      history.push('/login');
+    try {
+      const data = await registerVecino({
+        nombre: formData.nombre,
+        rut: formData.rut,
+        correo: formData.correo,
+        password: formData.password,
+        region: REGIONES[formData.region] ?? formData.region,
+        comuna: COMUNAS[formData.comuna] ?? formData.comuna,
+      });
+
+      // El backend devuelve sesión iniciada: guardamos el JWT y entramos directo.
+      login(data.token, data.user);
+      history.replace('/app/inicio');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'No se pudo completar el registro.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -66,7 +106,7 @@ const Registro: React.FC = () => {
           </FormField>
 
           <FormField label="RUT" className="mb-4">
-            <IonInput type="text" value={formData.rut} onIonChange={e => handleChange('rut', e.detail.value!)} required style={authInputStyle} />
+            <IonInput type="text" value={formData.rut} onIonChange={e => handleChange('rut', e.detail.value!)} placeholder="12.345.678-9" required style={authInputStyle} />
           </FormField>
 
           <FormField label="Correo Electrónico" className="mb-4">
@@ -135,6 +175,16 @@ const Registro: React.FC = () => {
       </div>
 
       <AuthFooter />
+
+      {/*notificación de error de validación o de registro del backend*/}
+      <IonToast
+        isOpen={Boolean(error)}
+        onDidDismiss={() => setError('')}
+        message={error}
+        duration={3500}
+        position="top"
+        color="danger"
+      />
     </AuthLayout>
   );
 };

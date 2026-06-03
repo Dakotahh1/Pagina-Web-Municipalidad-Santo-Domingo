@@ -12,7 +12,24 @@ import { requestLogger } from './middlewares/requestLogger';
 
 const app: Application = express();
 
-app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:8100' }));
+// Orígenes permitidos por CORS (lista separada por comas en CORS_ORIGIN).
+// Por defecto admite `ionic serve` (8100) y `vite` (5173).
+const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:8100,http://localhost:5173')
+  .split(',')
+  .map((origin) => origin.trim());
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Permite peticiones sin origin (Postman, curl) y, en desarrollo, cualquier
+    // puerto de localhost (evita errores de CORS si Vite cambia de puerto).
+    if (!origin) return callback(null, true);
+    const esLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+    if (allowedOrigins.includes(origin) || (process.env.NODE_ENV !== 'production' && esLocalhost)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`Origen no permitido por CORS: ${origin}`));
+  },
+}));
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger);
