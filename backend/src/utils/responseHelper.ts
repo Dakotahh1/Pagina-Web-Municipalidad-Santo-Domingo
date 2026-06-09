@@ -1,44 +1,59 @@
+/**
+ * responseHelper.ts — ACTUALIZADO
+ * ─────────────────────────────────
+ * Se agrega un cuarto parámetro opcional `pagination` a list() para que
+ * los listados paginados devuelvan metadata de navegación junto a los datos.
+ *
+ * Respuesta paginada:
+ * {
+ *   success: true,
+ *   data: [...],
+ *   total: 87,
+ *   pagination: { page: 2, limit: 20, pages: 5 }
+ * }
+ */
+
 import { Response } from 'express';
-import { ApiResponse } from '../types';
 
-/*helpers que centralizan la estructura de las respuestas JSON.
-  asegura consistencia en TODOS los endpoints sin repetir el shape en cada controller*/
+interface PaginationMeta {
+  page:  number;
+  limit: number;
+  pages: number;
+}
 
-export const ok = <T>(res: Response, data: T, message?: string): void => {
-  const body: ApiResponse<T> = { success: true, data, message };
-  res.status(200).json(body);
-};
+export const ok = (res: Response, data: unknown, message?: string) =>
+  res.status(200).json({ success: true, data, ...(message && { message }) });
 
-export const created = <T>(res: Response, data: T, message = 'Recurso creado exitosamente'): void => {
-  const body: ApiResponse<T> = { success: true, data, message };
-  res.status(201).json(body);
-};
+export const created = (res: Response, data: unknown, message?: string) =>
+  res.status(201).json({ success: true, data, ...(message && { message }) });
 
-export const noContent = (res: Response): void => {
+export const list = (
+  res: Response,
+  data: unknown,
+  total: number,
+  pagination?: PaginationMeta,
+) =>
+  res.status(200).json({
+    success: true,
+    data,
+    total,
+    ...(pagination && { pagination }),
+  });
+
+export const noContent = (res: Response) =>
   res.status(204).send();
-};
 
-export const list = <T>(res: Response, data: T[], total: number, page = 1, limit = 10): void => {
-  const body: ApiResponse<T[]> = { success: true, data, meta: { total, page, limit } };
-  res.status(200).json(body);
-};
+export const badRequest = (res: Response, message: string, details?: unknown) =>
+  res.status(400).json({
+    success: false,
+    error: { code: 'BAD_REQUEST', message, ...(details && { details }) },
+  });
 
-export const badRequest = (res: Response, message: string, details?: unknown): void => {
-  const body: ApiResponse = { success: false, error: { code: 'BAD_REQUEST', message, details } };
-  res.status(400).json(body);
-};
+export const unauthorized = (res: Response, message = 'No autorizado') =>
+  res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message } });
 
-export const notFound = (res: Response, message = 'Recurso no encontrado'): void => {
-  const body: ApiResponse = { success: false, error: { code: 'NOT_FOUND', message } };
-  res.status(404).json(body);
-};
+export const notFound = (res: Response, message: string) =>
+  res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message } });
 
-export const conflict = (res: Response, message: string): void => {
-  const body: ApiResponse = { success: false, error: { code: 'CONFLICT', message } };
-  res.status(409).json(body);
-};
-
-export const unauthorized = (res: Response, message = 'No autorizado'): void => {
-  const body: ApiResponse = { success: false, error: { code: 'UNAUTHORIZED', message } };
-  res.status(401).json(body);
-};
+export const conflict = (res: Response, message: string) =>
+  res.status(409).json({ success: false, error: { code: 'CONFLICT', message } });

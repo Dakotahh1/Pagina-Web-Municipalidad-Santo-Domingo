@@ -1,17 +1,24 @@
 import { Router } from 'express';
-import * as ctrl from '../controllers/operativosController';
+import {
+  getOperativos,
+  getOperativoById,
+  createOperativo,
+  patchOperativo,
+  replaceOperativo,
+  deleteOperativo,
+} from '../controllers/operativosController';
 import { verifyJWT, requireRole } from '../middlewares/authMiddleware';
+import { cache } from '../middlewares/cacheMiddleware';
 
 const router = Router();
 
-// Lectura pública — vecinos necesitan ver operativos para inscribirse
-router.get   ('/',     ctrl.getOperativos);
-router.get   ('/:id',  ctrl.getOperativoById);
+// Operativos son públicos (vecinos los consultan sin login)
+router.get('/',    cache(120, 'operativos'), getOperativos);
+router.get('/:id', cache(180, 'operativos'), getOperativoById);
 
-// Gestión — solo funcionarios e inspectores
-router.post  ('/',     verifyJWT, requireRole(['funcionario', 'inspector']), ctrl.createOperativo);
-router.put   ('/:id',  verifyJWT, requireRole(['funcionario', 'inspector']), ctrl.replaceOperativo);
-router.patch ('/:id',  verifyJWT, requireRole(['funcionario', 'inspector']), ctrl.patchOperativo);
-router.delete('/:id',  verifyJWT, requireRole(['funcionario', 'inspector']), ctrl.deleteOperativo);
+router.post(  '/',    verifyJWT, requireRole(['funcionario', 'inspector']), createOperativo);
+router.patch( '/:id', verifyJWT, requireRole(['funcionario', 'inspector']), patchOperativo);
+router.put(   '/:id', verifyJWT, requireRole(['funcionario', 'inspector']), replaceOperativo);
+router.delete('/:id', verifyJWT, requireRole(['funcionario', 'inspector']), deleteOperativo);
 
 export default router;

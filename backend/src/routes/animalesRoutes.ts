@@ -1,17 +1,25 @@
 import { Router } from 'express';
-import * as ctrl from '../controllers/animalesController';
+import {
+  getAnimales,
+  getAnimalById,
+  createAnimal,
+  patchAnimal,
+  replaceAnimal,
+  deleteAnimal,
+} from '../controllers/animalesController';
 import { verifyJWT, requireRole } from '../middlewares/authMiddleware';
+import { cache } from '../middlewares/cacheMiddleware';
 
 const router = Router();
 
-// Lectura pública — vecinos pueden ver animales disponibles
-router.get   ('/',     ctrl.getAnimales);
-router.get   ('/:id',  ctrl.getAnimalById);
+// ── Lectura (público — cualquiera puede ver animales disponibles) ──────────────
+router.get('/',    cache(60,  'animales'), getAnimales);
+router.get('/:id', cache(120, 'animales'), getAnimalById);
 
-// Escritura — solo funcionarios e inspectores
-router.post  ('/',     verifyJWT, requireRole(['funcionario', 'inspector']), ctrl.createAnimal);
-router.put   ('/:id',  verifyJWT, requireRole(['funcionario', 'inspector']), ctrl.replaceAnimal);
-router.patch ('/:id',  verifyJWT, requireRole(['funcionario', 'inspector']), ctrl.patchAnimal);
-router.delete('/:id',  verifyJWT, requireRole(['funcionario', 'inspector']), ctrl.deleteAnimal);
+// ── Escritura (requieren autenticación + rol funcionario o inspector) ──────────
+router.post(  '/',    verifyJWT, requireRole(['funcionario', 'inspector']), createAnimal);
+router.patch( '/:id', verifyJWT, requireRole(['funcionario', 'inspector']), patchAnimal);
+router.put(   '/:id', verifyJWT, requireRole(['funcionario', 'inspector']), replaceAnimal);
+router.delete('/:id', verifyJWT, requireRole(['funcionario', 'inspector']), deleteAnimal);
 
 export default router;

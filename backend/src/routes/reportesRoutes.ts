@@ -1,18 +1,22 @@
 import { Router } from 'express';
-import * as ctrl from '../controllers/reportesController';
+import {
+  getReportes,
+  getReporteById,
+  createReporte,
+  patchReporte,
+  deleteReporte,
+} from '../controllers/reportesController';
 import { verifyJWT, requireRole } from '../middlewares/authMiddleware';
+import { cache } from '../middlewares/cacheMiddleware';
 
 const router = Router();
 
-// Listado de reportes — solo funcionarios e inspectores
-router.get   ('/',     verifyJWT, requireRole(['funcionario', 'inspector']), ctrl.getReportes);
-router.get   ('/:id',  verifyJWT, requireRole(['funcionario', 'inspector']), ctrl.getReporteById);
+// Reportes requieren login para leer (datos sensibles de la municipalidad)
+router.get('/',    verifyJWT, cache(30, 'reportes'), getReportes);
+router.get('/:id', verifyJWT, cache(60, 'reportes'), getReporteById);
 
-// Vecino crea reporte (cualquier usuario autenticado)
-router.post  ('/',     verifyJWT, ctrl.createReporte);
-
-// Actualización y eliminación — solo funcionarios e inspectores
-router.patch ('/:id',  verifyJWT, requireRole(['funcionario', 'inspector']), ctrl.patchReporte);
-router.delete('/:id',  verifyJWT, requireRole(['funcionario', 'inspector']), ctrl.deleteReporte);
+router.post(  '/',    verifyJWT, createReporte);
+router.patch( '/:id', verifyJWT, requireRole(['funcionario', 'inspector']), patchReporte);
+router.delete('/:id', verifyJWT, requireRole(['funcionario', 'inspector']), deleteReporte);
 
 export default router;
