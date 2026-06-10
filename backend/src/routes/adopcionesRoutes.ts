@@ -1,18 +1,22 @@
 import { Router } from 'express';
-import * as ctrl from '../controllers/adopcionesController';
+import {
+  getSolicitudes,
+  getSolicitudById,
+  createSolicitud,
+  patchSolicitud,
+  deleteSolicitud,
+} from '../controllers/adopcionesController';
 import { verifyJWT, requireRole } from '../middlewares/authMiddleware';
 
 const router = Router();
 
-// Listado — solo funcionarios e inspectores
-router.get   ('/',     verifyJWT, requireRole(['funcionario', 'inspector']), ctrl.getSolicitudes);
-router.get   ('/:id',  verifyJWT, ctrl.getSolicitudById);
+// Adopciones: no se cachean (datos personales de usuarios).
+// El listado completo es exclusivo del personal municipal.
+router.get('/',    verifyJWT, requireRole(['funcionario', 'inspector']), getSolicitudes);
+router.get('/:id', verifyJWT, getSolicitudById);
 
-// Vecino envía solicitud (cualquier usuario autenticado)
-router.post  ('/',     verifyJWT, ctrl.createSolicitud);
-
-// Gestión de solicitudes — solo funcionarios e inspectores
-router.patch ('/:id',  verifyJWT, requireRole(['funcionario', 'inspector']), ctrl.patchSolicitud);
-router.delete('/:id',  verifyJWT, requireRole(['funcionario', 'inspector']), ctrl.deleteSolicitud);
+router.post(  '/',    verifyJWT, createSolicitud);
+router.patch( '/:id', verifyJWT, requireRole(['funcionario', 'inspector']), patchSolicitud);
+router.delete('/:id', verifyJWT, requireRole(['funcionario', 'inspector']), deleteSolicitud);
 
 export default router;

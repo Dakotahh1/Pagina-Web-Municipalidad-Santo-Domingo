@@ -10,90 +10,112 @@ datasource db {
 // ─── ROLES ────────────────────────────────────────────────────────────────────
 model Rol {
   id       Int       @id @default(autoincrement())
-  nombre   String    @unique // 'vecino' | 'funcionario' | 'inspector'
+  nombre   String    @unique
   usuarios Usuario[]
 }
 
 // ─── USUARIOS ─────────────────────────────────────────────────────────────────
 model Usuario {
-  id             Int      @id @default(autoincrement())
-  rut            String   @unique
+  id              Int      @id @default(autoincrement())
+  rut             String   @unique
   nombre_completo String
-  correo         String   @unique
-  password_hash  String
-  region         String
-  comuna         String
-  activo         Boolean  @default(true)
-  rol_id         Int
-  fecha_creacion DateTime @default(now())
+  correo          String   @unique
+  password_hash   String
+  region          String
+  comuna          String
+  activo          Boolean  @default(true)
+  rol_id          Int
+  fecha_creacion  DateTime @default(now())
 
-  // Relaciones
-  rol                    Rol                    @relation(fields: [rol_id], references: [id])
-  reportes               Reporte[]
-  foro_publicaciones     ForoPublicacion[]
-  solicitudes_adopcion   SolicitudAdopcion[]
+  rol                      Rol                    @relation(fields: [rol_id], references: [id])
+  reportes                 Reporte[]
+  foro_publicaciones       ForoPublicacion[]
+  solicitudes_adopcion     SolicitudAdopcion[]
   inscripciones_operativos InscripcionOperativo[]
+
+  // ── Índices ──────────────────────────────────────────────────────────────
+  // correo y rut ya tienen @unique (implica índice). Se agrega rol_id para
+  // joins frecuentes en authController (include: { rol: true }).
+  @@index([rol_id])
+  // activo se consulta en CADA login; índice parcial no existe en Prisma,
+  // pero el índice compuesto (activo, correo) acelera el findUnique+filtro.
+  @@index([activo, correo])
 }
 
-// ─── MASCOTAS (= animalesDb en el código) ─────────────────────────────────────
+// ─── MASCOTAS ─────────────────────────────────────────────────────────────────
 model Mascota {
-  id              Int      @id @default(autoincrement())
-  nombre          String
-  especie         String   // 'Perro' | 'Gato'
-  raza            String
-  sexo            String   // 'Macho' | 'Hembra'
-  edad            Int
-  color           String   @default("")
-  vacunado        Boolean  @default(false)
-  castrado        Boolean  @default(false)
-  chip            String?  // nullable — no todos tienen chip
-  descripcion     String   @default("")
-  estado_adopcion String   @default("Disponible") // 'Disponible' | 'Adoptado' | 'En tratamiento'
-  imagenes        String[] @default([])
-  fecha_creacion  DateTime @default(now())
+  id                  Int      @id @default(autoincrement())
+  nombre              String
+  especie             String   // 'Perro' | 'Gato'
+  raza                String
+  sexo                String   // 'Macho' | 'Hembra'
+  edad                Int
+  color               String   @default("")
+  vacunado            Boolean  @default(false)
+  castrado            Boolean  @default(false)
+  chip                String?
+  descripcion         String   @default("")
+  estado_adopcion     String   @default("Disponible")
+  imagenes            String[] @default([])
+  fecha_creacion      DateTime @default(now())
   fecha_actualizacion DateTime @updatedAt
 
-  // Relaciones
   solicitudes_adopcion SolicitudAdopcion[]
+
+  // ── Índices ──────────────────────────────────────────────────────────────
+  // getAnimales filtra por estado_adopcion y especie en combinación.
+  @@index([estado_adopcion, especie])
+  // Listados ordenados por fecha de creación descendente.
+  @@index([fecha_creacion(sort: Desc)])
 }
 
 // ─── REPORTES ─────────────────────────────────────────────────────────────────
 model Reporte {
-  id              Int      @id @default(autoincrement())
-  usuario_id      Int
-  tipo_incidente  String   // 'Abandono' | 'Animal herido' | 'Mordedura' | 'Tenencia irresponsable'
-  descripcion     String
-  latitud         Decimal
-  longitud        Decimal
-  sector          String
-  urgente         Boolean  @default(false)
-  estado          String   @default("Pendiente") // 'Pendiente' | 'En proceso' | 'Resuelto' | 'Cerrado'
-  fotos           String[] @default([])
-  inspector_asignado String?
-  fecha_creacion  DateTime @default(now())
+  id                  Int      @id @default(autoincrement())
+  usuario_id          Int
+  tipo_incidente      String
+  descripcion         String
+  latitud             Decimal
+  longitud            Decimal
+  sector              String
+  urgente             Boolean  @default(false)
+  estado              String   @default("Pendiente")
+  fotos               String[] @default([])
+  inspector_asignado  String?
+  fecha_creacion      DateTime @default(now())
   fecha_actualizacion DateTime @updatedAt
 
-  // Relaciones
   usuario Usuario @relation(fields: [usuario_id], references: [id])
+
+  // ── Índices ──────────────────────────────────────────────────────────────
+  // getReportes filtra por estado y urgente; este índice cubre ambos filtros.
+  @@index([estado, urgente])
+  // Dashboard de inspector: reportes por usuario ordenados por fecha.
+  @@index([usuario_id, fecha_creacion(sort: Desc)])
 }
 
 // ─── OPERATIVOS ───────────────────────────────────────────────────────────────
 model Operativo {
-  id              Int      @id @default(autoincrement())
-  titulo          String
-  tipo            String   // 'Vacunación' | 'Esterilización' | 'Chipeo' | 'Mixto'
-  descripcion     String   @default("")
-  fecha_evento    DateTime
-  hora            String
-  ubicacion       String
-  cupos_totales   Int
-  cupos_disponibles Int
-  estado          String   @default("Programado") // 'Programado' | 'En curso' | 'Finalizado'
-  fecha_creacion  DateTime @default(now())
+  id                  Int      @id @default(autoincrement())
+  titulo              String
+  tipo                String
+  descripcion         String   @default("")
+  fecha_evento        DateTime
+  hora                String
+  ubicacion           String
+  cupos_totales       Int
+  cupos_disponibles   Int
+  estado              String   @default("Programado")
+  fecha_creacion      DateTime @default(now())
   fecha_actualizacion DateTime @updatedAt
 
-  // Relaciones
   inscripciones InscripcionOperativo[]
+
+  // ── Índices ──────────────────────────────────────────────────────────────
+  // getOperativos filtra por estado y tipo; ambos en el mismo índice.
+  @@index([estado, tipo])
+  // Listados ordenados por fecha_evento ascendente (los próximos primero).
+  @@index([fecha_evento(sort: Asc)])
 }
 
 // ─── INSCRIPCIONES OPERATIVOS ─────────────────────────────────────────────────
@@ -103,39 +125,49 @@ model InscripcionOperativo {
   usuario_id        Int
   fecha_inscripcion DateTime @default(now())
 
-  // Relaciones
   operativo Operativo @relation(fields: [operativo_id], references: [id])
   usuario   Usuario   @relation(fields: [usuario_id], references: [id])
 
-  @@unique([operativo_id, usuario_id]) // un usuario no puede inscribirse dos veces
+  @@unique([operativo_id, usuario_id])
+  // @@unique ya crea índice sobre (operativo_id, usuario_id).
+  // Índice inverso para consultas "operativos en que participa un usuario".
+  @@index([usuario_id])
 }
 
 // ─── SOLICITUDES DE ADOPCIÓN ──────────────────────────────────────────────────
 model SolicitudAdopcion {
-  id               Int      @id @default(autoincrement())
-  usuario_id       Int
-  mascota_id       Int
-  motivo           String
-  telefono         String
-  estado_solicitud String   @default("Pendiente") // 'Pendiente' | 'Aprobada' | 'Rechazada'
-  fecha_solicitud  DateTime @default(now())
+  id                  Int      @id @default(autoincrement())
+  usuario_id          Int
+  mascota_id          Int
+  motivo              String
+  telefono            String
+  estado_solicitud    String   @default("Pendiente")
+  fecha_solicitud     DateTime @default(now())
   fecha_actualizacion DateTime @updatedAt
 
-  // Relaciones
   usuario Usuario @relation(fields: [usuario_id], references: [id])
   mascota Mascota @relation(fields: [mascota_id], references: [id])
+
+  // ── Índices ──────────────────────────────────────────────────────────────
+  // getSolicitudes filtra por estado_solicitud.
+  @@index([estado_solicitud])
+  // Consultas "mis solicitudes" por usuario.
+  @@index([usuario_id])
 }
 
 // ─── FORO PUBLICACIONES ───────────────────────────────────────────────────────
 model ForoPublicacion {
-  id                Int      @id @default(autoincrement())
-  usuario_id        Int
-  titulo            String
-  contenido         String
-  categoria         String   @default("General") // 'Abandono' | 'Adopcion' | 'Consulta' | 'Reclamo' | 'General'
-  fecha_publicacion DateTime @default(now())
+  id                  Int      @id @default(autoincrement())
+  usuario_id          Int
+  titulo              String
+  contenido           String
+  categoria           String   @default("General")
+  fecha_publicacion   DateTime @default(now())
   fecha_actualizacion DateTime @updatedAt
 
-  // Relaciones
   usuario Usuario @relation(fields: [usuario_id], references: [id])
+
+  // ── Índices ──────────────────────────────────────────────────────────────
+  @@index([categoria])
+  @@index([fecha_publicacion(sort: Desc)])
 }
