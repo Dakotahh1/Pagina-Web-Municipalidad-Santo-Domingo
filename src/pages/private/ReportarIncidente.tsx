@@ -1,78 +1,100 @@
-import React, { useState, useRef } from 'react';
-import {
-  IonPage, IonContent, IonToast
-} from '@ionic/react';
+import React, { useRef, useState } from 'react';
+import { IonPage, IonContent } from '@ionic/react';
 import NavBar from '../../components/NavBar';
 import RevealWrapper from '../../components/RevealWrapper';
+import { crearReporte } from '../../services/reportesService';
+import { ApiError } from '../../services/api';
+import { useNotifications } from '../../context/useNotifications';
+import { useLocalStorage } from '../../hooks/useLocalStorage';
 
-/*formulario para reportar un incidente de bienestar animal.
-  permite al vecino seleccionar el tipo de incidente, ingresar la ubicación,
-  adjuntar una foto y enviar el reporte a la unidad municipal.
+/* Formulario para reportar un incidente de bienestar animal (EF1 — CRUD: Create).
+   El vecino selecciona el tipo, ubica el incidente, lo describe y lo envía al backend
+   (POST /api/reportes). Características:
+   - Autoguardado del borrador en localStorage (sobrevive recargas o navegación).
+   - Notificación al enviar (sistema de notificaciones global).
+   - Validación visual de los campos obligatorios. */
 
-  el reporte llega directamente a los inspectores: tiempo de respuesta 24-48 hrs hábiles,
-  2-4 hrs para casos urgentes.
+// Mapea las etiquetas del formulario a los tipos canónicos que valida el backend.
+const TIPO_MAP: Record<string, string> = {
+  'Abandono de animal': 'Abandono',
+  'Mordedura / Agresión': 'Mordedura',
+  'Tenencia irresponsable': 'Tenencia irresponsable',
+  'Animal herido / Enfermo': 'Animal herido',
+  'Animal muerto en vía pública': 'Animal muerto',
+  'Otro / Reclamo': 'Otro',
+};
 
-  estructura:
-    - navbar institucional
-    - hero rojo con título y descripción del proceso
-    - columna izquierda: stepper de pasos + tipo de incidente + ubicación + foto
-    - columna derecha: tiempo de respuesta + qué pasa después + emergencia*/
+// Coordenadas aproximadas de Santo Domingo (no hay selector de mapa real en esta versión).
+const COORD_SANTO_DOMINGO = { lat: -33.6437, lng: -71.6311 };
+
+interface ReporteForm {
+  tipoIncidente: string;
+  direccion: string;
+  sector: string;
+  referencia: string;
+  descripcion: string;
+  urgente: boolean;
+}
+
+const DRAFT_INICIAL: ReporteForm = {
+  tipoIncidente: 'Abandono de animal',
+  direccion: '',
+  sector: '',
+  referencia: '',
+  descripcion: '',
+  urgente: false,
+};
 
 const ReportarIncidente: React.FC = () => {
+  const { notify } = useNotifications();
 
-  //tipo de incidente seleccionado (requerido para enviar)
-  const [tipoIncidente, setTipoIncidente] = useState<string>('Abandono de animal');
+  // Borrador del formulario persistido en localStorage (autoguardado).
+  const [form, setForm] = useLocalStorage<ReporteForm>('bienestar.reporteDraft', DRAFT_INICIAL);
+  const setField = <K extends keyof ReporteForm>(campo: K, valor: ReporteForm[K]) =>
+    setForm((prev) => ({ ...prev, [campo]: valor }));
 
-  //campos del formulario de ubicación
-  const [direccion,  setDireccion]  = useState('');
-  const [sector,     setSector]     = useState('');
-  const [referencia, setReferencia] = useState('');
-
-  //imagen adjunta del incidente
+  // Imagen adjunta (no se persiste el base64 por su tamaño).
   const [imagenPreview, setImagenPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  //toast de confirmación al enviar
-  const [showToast, setShowToast] = useState(false);
-  const [toastMsg,  setToastMsg]  = useState('');
-  const [toastColor, setToastColor] = useState<'success' | 'danger'>('success');
+  const [errores, setErrores] = useState<{ direccion?: string; descripcion?: string }>({});
+  const [enviando, setEnviando] = useState(false);
 
-  //errores de validación del formulario
-  const [errores, setErrores] = useState<{ direccion?: string }>({});
-
-  const mostrarToast = (msg: string, color: 'success' | 'danger' = 'success') => {
-    setToastMsg(msg); setToastColor(color); setShowToast(true);
-  };
-
-  /*tipos de incidente disponibles. cada uno tiene su propia selección visual
-    con fondo rosado y borde rojo cuando está activo*/
   const tipos = [
     'Abandono de animal',
     'Mordedura / Agresión',
     'Tenencia irresponsable',
     'Animal herido / Enfermo',
     'Animal muerto en vía pública',
-    'Otro / Reclamo'
+    'Otro / Reclamo',
   ];
 
-  /*stepper visual de los 4 pasos del formulario. está hardcodeado en estado fijo por ahora —
-    TODO: hacerlo dinámico según qué campos están completos*/
+  // Stepper dinámico según el avance real del formulario.
+  const completos = {
+    tipo: Boolean(form.tipoIncidente),
+    ubic: Boolean(form.direccion.trim()),
+    desc: Boolean(form.descripcion.trim()),
+  };
+  const pasoEstado = (hecho: boolean, activo: boolean) =>
+    hecho
+      ? { estado: 'Completado', bg: '#16a34a', color: '#ffffff' }
+      : activo
+        ? { estado: 'En proceso', bg: '#1e3aa4', color: '#ffffff' }
+        : { estado: 'Pendiente', bg: '#e5e7eb', color: '#9ca3af' };
   const pasos = [
-    { numero: 1, titulo: 'Tipo',        estado: 'Completado', bgCirculo: '#16a34a', colorTexto: '#ffffff' },
-    { numero: 2, titulo: 'Ubicación',   estado: 'En proceso', bgCirculo: '#1e3aa4', colorTexto: '#ffffff' },
-    { numero: 3, titulo: 'Descripción', estado: 'Pendiente',  bgCirculo: '#e5e7eb', colorTexto: '#9ca3af' },
-    { numero: 4, titulo: 'Enviar',      estado: 'Pendiente',  bgCirculo: '#e5e7eb', colorTexto: '#9ca3af' },
+    { numero: 1, titulo: 'Tipo',        ...pasoEstado(completos.tipo, true) },
+    { numero: 2, titulo: 'Ubicación',   ...pasoEstado(completos.ubic, completos.tipo) },
+    { numero: 3, titulo: 'Descripción', ...pasoEstado(completos.desc, completos.ubic) },
+    { numero: 4, titulo: 'Enviar',      ...pasoEstado(false, completos.desc) },
   ];
 
-  //descripción del proceso interno luego de enviar el reporte
   const pasosProceso = [
     '1. Tu caso llega a la unidad',
     '2. Un inspector evalúa el caso',
     '3. Se asigna una intervención',
-    '4. Recibes una notificación del resultado'
+    '4. Recibes una notificación del resultado',
   ];
 
-  //maneja la selección de imagen: lee el archivo y genera un preview base64
   const handleImagenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -82,23 +104,47 @@ const ReportarIncidente: React.FC = () => {
     }
   };
 
-  //valida el formulario y envía el reporte si todo está correcto
-  const handleEnviar = () => {
-    const nuevosErrores: { direccion?: string } = {};
-    if (!direccion.trim()) {
-      nuevosErrores.direccion = 'la dirección es obligatoria para ubicar el incidente';
-    }
+  // Valida y envía el reporte al backend.
+  const handleEnviar = async () => {
+    const nuevosErrores: { direccion?: string; descripcion?: string } = {};
+    if (!form.direccion.trim()) nuevosErrores.direccion = 'la dirección es obligatoria para ubicar el incidente';
+    if (!form.descripcion.trim()) nuevosErrores.descripcion = 'describe brevemente lo que observaste';
+
     if (Object.keys(nuevosErrores).length > 0) {
       setErrores(nuevosErrores);
-      mostrarToast('completa los campos obligatorios antes de enviar', 'danger');
+      notify('Faltan datos', 'Completa los campos obligatorios antes de enviar', 'error');
       return;
     }
     setErrores({});
-    //aquí iría la llamada real a la api
-    mostrarToast('tu reporte fue enviado. un inspector lo revisará en 24-48 hrs hábiles');
+    setEnviando(true);
+    try {
+      const sector = form.sector.trim() || form.direccion.trim();
+      const descripcion =
+        `${form.descripcion.trim()}` +
+        (form.referencia.trim() ? ` (Referencia: ${form.referencia.trim()})` : '') +
+        ` — Dirección: ${form.direccion.trim()}`;
+
+      const reporte = await crearReporte({
+        tipo: TIPO_MAP[form.tipoIncidente] ?? 'Otro',
+        descripcion,
+        ubicacion: { ...COORD_SANTO_DOMINGO, sector },
+        urgente: form.urgente,
+      });
+
+      notify('Reporte enviado', `Caso #${reporte.id} registrado. Un inspector lo revisará.`, 'success');
+
+      // Limpia el borrador y resetea el formulario.
+      setForm(DRAFT_INICIAL);
+      setImagenPreview(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    } catch (err) {
+      notify('No se pudo enviar', err instanceof ApiError ? err.message : 'Error de conexión con el servidor', 'error');
+    } finally {
+      setEnviando(false);
+    }
   };
 
-  //estilos reutilizables para el formulario
+  // Estilos reutilizables.
   const card: React.CSSProperties = { background: '#ffffff', border: '1px solid #d1d5db', borderRadius: '8px', boxShadow: '0 1px 4px rgba(0,0,0,0.07)', padding: '24px' };
   const labelStyle: React.CSSProperties = { fontFamily: "'Roboto Slab', serif", fontWeight: 700, fontSize: '11px', color: '#4b5563', textTransform: 'uppercase', display: 'block', marginBottom: '6px' };
   const inputStyle: React.CSSProperties = { width: '100%', backgroundColor: '#e5e7eb', border: '1px solid #d1d5db', borderRadius: '6px', padding: '10px 14px', fontFamily: "'Roboto Slab', serif", fontSize: '14px', color: '#333', outline: 'none', boxSizing: 'border-box' };
@@ -107,12 +153,11 @@ const ReportarIncidente: React.FC = () => {
   return (
     <IonPage>
 
-      {/*barra de navegación institucional*/}
       <NavBar />
 
       <IonContent fullscreen style={{ '--background': '#ffffff' }}>
 
-        {/*hero con fondo rosado-rojo que indica urgencia y acción cívica*/}
+        {/*hero que indica urgencia y acción cívica*/}
         <RevealWrapper>
           <div style={{ backgroundColor: '#fae8e8', padding: '32px 0' }}>
             <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 32px' }}>
@@ -127,21 +172,20 @@ const ReportarIncidente: React.FC = () => {
           </div>
         </RevealWrapper>
 
-        {/*contenido principal en dos columnas*/}
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '32px 32px 48px' }}>
-          <div style={{ display: 'flex', gap: '28px', alignItems: 'flex-start' }}>
+          <div style={{ display: 'flex', gap: '28px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
 
-            {/*columna izquierda: stepper + tipo + ubicación + foto + envío*/}
-            <div style={{ flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {/*columna izquierda: stepper + tipo + ubicación + descripción + envío*/}
+            <div style={{ flex: '1 1 420px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
-              {/*stepper visual que indica en qué paso del formulario está el vecino*/}
+              {/*stepper dinámico según el avance del formulario*/}
               <RevealWrapper>
                 <div style={card}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-                    {pasos.map(paso => (
+                    {pasos.map((paso) => (
                       <div key={paso.numero} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: paso.bgCirculo, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          <span style={{ fontFamily: serif, fontWeight: 800, fontSize: '16px', color: paso.colorTexto }}>{paso.numero}</span>
+                        <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: paso.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <span style={{ fontFamily: serif, fontWeight: 800, fontSize: '16px', color: paso.color }}>{paso.numero}</span>
                         </div>
                         <div>
                           <div style={{ fontFamily: serif, fontWeight: 700, fontSize: '14px', color: '#111827', lineHeight: '1.2' }}>{paso.titulo}</div>
@@ -153,7 +197,7 @@ const ReportarIncidente: React.FC = () => {
                 </div>
               </RevealWrapper>
 
-              {/*selector de tipo de incidente. muestra opciones en grid 2x3 con estado visual activo*/}
+              {/*selector de tipo de incidente*/}
               <RevealWrapper delay={80}>
                 <div style={card}>
                   <h2 style={{ fontFamily: serif, fontWeight: 700, fontSize: '16px', color: '#000', margin: '0 0 18px 0' }}>
@@ -161,16 +205,15 @@ const ReportarIncidente: React.FC = () => {
                   </h2>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                     {tipos.map((tipo, idx) => {
-                      const sel = tipoIncidente === tipo;
+                      const sel = form.tipoIncidente === tipo;
                       return (
-                        <button key={idx} onClick={() => setTipoIncidente(tipo)} style={{
+                        <button key={idx} onClick={() => setField('tipoIncidente', tipo)} style={{
                           backgroundColor: sel ? '#fdeceb' : '#ffffff',
                           border: sel ? '2px solid #f87171' : '1px solid #d1d5db',
                           borderRadius: '8px', padding: '18px 12px',
                           fontFamily: serif, fontWeight: 600, fontSize: '14px',
                           color: sel ? '#b01717' : '#4b5563',
-                          cursor: 'pointer', textAlign: 'left',
-                          transition: 'all 0.15s ease'
+                          cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s ease',
                         }}>
                           {tipo}
                         </button>
@@ -180,52 +223,45 @@ const ReportarIncidente: React.FC = () => {
                 </div>
               </RevealWrapper>
 
-              {/*formulario de ubicación del incidente con dirección, sector, referencia y mapa*/}
+              {/*ubicación del incidente*/}
               <RevealWrapper delay={160}>
                 <div style={card}>
                   <h2 style={{ fontFamily: serif, fontWeight: 700, fontSize: '16px', color: '#000', margin: '0 0 18px 0' }}>
                     Ubicación del incidente
                   </h2>
 
-                  {/*dirección-campo obligatorio, muestra error si está vacío al enviar*/}
                   <div style={{ marginBottom: '14px' }}>
                     <label style={labelStyle}>Dirección Aproximada *</label>
                     <input
                       type="text"
-                      value={direccion}
-                      onChange={e => { setDireccion(e.target.value); if (errores.direccion) setErrores({}); }}
+                      value={form.direccion}
+                      onChange={(e) => { setField('direccion', e.target.value); if (errores.direccion) setErrores((x) => ({ ...x, direccion: undefined })); }}
                       style={{ ...inputStyle, borderColor: errores.direccion ? '#f87171' : '#d1d5db' }}
                     />
                     {errores.direccion && (
-                      <p style={{ fontFamily: serif, fontSize: '11px', color: '#b01717', margin: '4px 0 0 0' }}>
-                        {errores.direccion}
-                      </p>
+                      <p style={{ fontFamily: serif, fontSize: '11px', color: '#b01717', margin: '4px 0 0 0' }}>{errores.direccion}</p>
                     )}
                   </div>
 
-                  {/*sector y referencia en grid de dos columnas*/}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '18px' }}>
                     <div>
                       <label style={labelStyle}>Sector</label>
-                      <input type="text" value={sector} onChange={e => setSector(e.target.value)} style={inputStyle} />
+                      <input type="text" value={form.sector} onChange={(e) => setField('sector', e.target.value)} style={inputStyle} />
                     </div>
                     <div>
                       <label style={labelStyle}>Referencia</label>
-                      <input type="text" value={referencia} onChange={e => setReferencia(e.target.value)} style={inputStyle} />
+                      <input type="text" value={form.referencia} onChange={(e) => setField('referencia', e.target.value)} style={inputStyle} />
                     </div>
                   </div>
 
-                  {/*mapa placeholder. reemplazar la url vacía con la ruta real del mapa*/}
-                  <div style={{ width: '100%', height: '240px', backgroundColor: '#e5e7eb', border: '1px solid #d1d5db', borderRadius: '8px', overflow: 'hidden', backgroundImage: 'url("/assets/mapa-placeholder.png")', backgroundSize: 'cover', backgroundPosition: 'center', marginBottom: '18px' }} />
-
-                  {/*zona de carga de imagen del incidente; permite preview antes de enviar*/}
+                  {/*zona de carga de imagen del incidente*/}
                   <div>
                     <label style={labelStyle}>Adjuntar imagen del incidente</label>
                     <div
                       onClick={() => fileInputRef.current?.click()}
                       style={{ border: '2px dashed #d1d5db', borderRadius: '8px', padding: '20px', textAlign: 'center', cursor: 'pointer', backgroundColor: '#f9fafb', transition: 'border-color 0.15s ease' }}
-                      onMouseEnter={e => { e.currentTarget.style.borderColor = '#9ca3af'; }}
-                      onMouseLeave={e => { e.currentTarget.style.borderColor = '#d1d5db'; }}
+                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#9ca3af'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#d1d5db'; }}
                     >
                       {imagenPreview ? (
                         <img src={imagenPreview} alt="Vista previa" style={{ maxHeight: '180px', maxWidth: '100%', borderRadius: '6px', objectFit: 'contain' }} />
@@ -237,11 +273,7 @@ const ReportarIncidente: React.FC = () => {
                         </div>
                       )}
                     </div>
-
-                    {/*input de archivo oculto, se activa con el click del área de carga*/}
                     <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImagenChange} style={{ display: 'none' }} />
-
-                    {/*botón para eliminar la imagen si el vecino quiere cambiarla*/}
                     {imagenPreview && (
                       <button
                         onClick={() => { setImagenPreview(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
@@ -254,21 +286,48 @@ const ReportarIncidente: React.FC = () => {
                 </div>
               </RevealWrapper>
 
-              {/*botón final de envío del reporte; valida el formulario antes de procesar*/}
+              {/*descripción del incidente (paso 3) + marca de urgencia*/}
+              <RevealWrapper delay={200}>
+                <div style={card}>
+                  <h2 style={{ fontFamily: serif, fontWeight: 700, fontSize: '16px', color: '#000', margin: '0 0 18px 0' }}>
+                    Descripción
+                  </h2>
+                  <label style={labelStyle}>¿Qué observaste? *</label>
+                  <textarea
+                    value={form.descripcion}
+                    onChange={(e) => { setField('descripcion', e.target.value); if (errores.descripcion) setErrores((x) => ({ ...x, descripcion: undefined })); }}
+                    rows={4}
+                    maxLength={1000}
+                    placeholder="Describe el incidente: cuántos animales, su estado, hace cuánto, etc."
+                    style={{ ...inputStyle, resize: 'vertical', borderColor: errores.descripcion ? '#f87171' : '#d1d5db' }}
+                  />
+                  {errores.descripcion && (
+                    <p style={{ fontFamily: serif, fontSize: '11px', color: '#b01717', margin: '4px 0 0 0' }}>{errores.descripcion}</p>
+                  )}
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '16px', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={form.urgente} onChange={(e) => setField('urgente', e.target.checked)} style={{ width: '18px', height: '18px', accentColor: '#b01717' }} />
+                    <span style={{ fontFamily: serif, fontWeight: 600, fontSize: '13px', color: '#b01717' }}>
+                      Marcar como urgente (animal en peligro inminente)
+                    </span>
+                  </label>
+                </div>
+              </RevealWrapper>
+
+              {/*botón de envío real*/}
               <RevealWrapper delay={240}>
                 <button
                   onClick={handleEnviar}
+                  disabled={enviando}
                   style={{
                     width: '100%', backgroundColor: '#b01717', color: '#ffffff',
                     border: 'none', borderRadius: '8px', padding: '16px',
                     fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: '16px',
-                    cursor: 'pointer', transition: 'opacity 0.15s ease',
-                    boxShadow: '0 4px 12px rgba(176,23,23,0.25)'
+                    cursor: enviando ? 'default' : 'pointer', opacity: enviando ? 0.7 : 1,
+                    transition: 'opacity 0.15s ease', boxShadow: '0 4px 12px rgba(176,23,23,0.25)',
                   }}
-                  onMouseEnter={e => { e.currentTarget.style.opacity = '0.88'; }}
-                  onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
                 >
-                  Enviar Reporte
+                  {enviando ? 'Enviando...' : 'Enviar Reporte'}
                 </button>
                 <p style={{ fontFamily: serif, fontSize: '11px', color: '#9ca3af', textAlign: 'center', marginTop: '8px' }}>
                   al enviar aceptas que los datos serán usados por la municipalidad para gestionar el caso
@@ -277,10 +336,9 @@ const ReportarIncidente: React.FC = () => {
 
             </div>
 
-            {/*columna derecha: información de proceso y contacto de emergencia*/}
+            {/*columna derecha: información de proceso y contacto*/}
             <div style={{ width: '320px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
-              {/*tiempos de respuesta según urgencia del caso*/}
               <RevealWrapper delay={100}>
                 <div style={{ backgroundColor: '#fae8e8', border: '1px solid #f87171', borderRadius: '8px', padding: '24px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                   <h2 style={{ fontFamily: serif, fontWeight: 700, fontSize: '15px', color: '#b01717', margin: '0 0 14px 0' }}>
@@ -297,7 +355,6 @@ const ReportarIncidente: React.FC = () => {
                 </div>
               </RevealWrapper>
 
-              {/*descripción del flujo interno de atención del reporte*/}
               <RevealWrapper delay={200}>
                 <div style={card}>
                   <h2 style={{ fontFamily: serif, fontWeight: 700, fontSize: '15px', color: '#000', margin: '0 0 16px 0' }}>¿Qué pasa después?</h2>
@@ -309,7 +366,6 @@ const ReportarIncidente: React.FC = () => {
                 </div>
               </RevealWrapper>
 
-              {/*contacto directo para emergencias que no pueden esperar*/}
               <RevealWrapper delay={300}>
                 <div style={card}>
                   <h2 style={{ fontFamily: serif, fontWeight: 700, fontSize: '15px', color: '#000', margin: '0 0 6px 0' }}>¿Emergencia inmediata?</h2>
@@ -318,8 +374,8 @@ const ReportarIncidente: React.FC = () => {
                   </p>
                   <button
                     style={{ width: '100%', backgroundColor: '#b01717', color: '#ffffff', border: 'none', borderRadius: '6px', padding: '12px', fontFamily: "'Inter', sans-serif", fontWeight: 600, fontSize: '15px', cursor: 'pointer', boxShadow: '0 2px 6px rgba(176,23,23,0.3)', transition: 'opacity 0.15s ease' }}
-                    onMouseEnter={e => { e.currentTarget.style.opacity = '0.88'; }}
-                    onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
+                    onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.88'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
                   >
                     Llamar ahora
                   </button>
@@ -329,16 +385,6 @@ const ReportarIncidente: React.FC = () => {
             </div>
           </div>
         </div>
-
-        {/*toast de confirmación o error al enviar el reporte*/}
-        <IonToast
-          isOpen={showToast}
-          onDidDismiss={() => setShowToast(false)}
-          message={toastMsg}
-          duration={4000}
-          position="bottom"
-          color={toastColor}
-        />
 
       </IonContent>
     </IonPage>

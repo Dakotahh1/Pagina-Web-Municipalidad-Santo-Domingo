@@ -2,27 +2,42 @@ import React, { useEffect, useState } from 'react';
 import {
   IonPage, IonContent, IonButton,
   IonGrid, IonRow, IonCol,
-  IonCard, IonCardContent, IonToast, IonSpinner
+  IonCard, IonCardContent, IonAlert, IonSpinner
 } from '@ionic/react';
 import NavBar from '../../components/NavBar';
 import RevealWrapper from '../../components/RevealWrapper';
-import { getAnimales, toCard, ApiError, type AnimalCard } from '../../services';
+import { getAnimales, toCard, solicitarAdopcion, ApiError, type AnimalCard } from '../../services';
+import { useNotifications } from '../../context/useNotifications';
 
-/* Página de adopciones (EP 2.4 — consumo de la API REST).
+/* Página de adopciones (EP 2.4 / EF1 — integración real).
    Obtiene el catálogo de animales en vivo desde el backend (GET /api/animales,
-   que lee desde PostgreSQL) y lo renderiza en una grilla con filtros por especie y
-   urgencia. Gestiona los estados de carga y de error de red de forma explícita. */
+   que lee desde PostgreSQL) y permite postular a una adopción mediante
+   POST /api/adopciones (la solicitud queda en lista de espera del funcionario). */
 
 const Adopciones: React.FC = () => {
+  const { notify } = useNotifications();
   const [animales, setAnimales] = useState<AnimalCard[]>([]);
   const [cargando, setCargando] = useState(true);
   const [errorCarga, setErrorCarga] = useState('');
 
   const [filtroActivo, setFiltroActivo] = useState<string>('Todos');
-  const [showToast, setShowToast] = useState(false);
-  const [toastMsg, setToastMsg] = useState('');
+  // Animal para el que se está completando la solicitud (abre el diálogo).
+  const [animalSolicitud, setAnimalSolicitud] = useState<AnimalCard | null>(null);
 
-  const mostrarToast = (msg: string) => { setToastMsg(msg); setShowToast(true); };
+  // Envía la solicitud real al backend con los datos del diálogo.
+  const enviarSolicitud = async (telefono: string, motivo: string) => {
+    if (!animalSolicitud) return;
+    if (!telefono.trim() || !motivo.trim()) {
+      notify('Faltan datos', 'Indica tu teléfono y el motivo de la adopción', 'error');
+      return;
+    }
+    try {
+      await solicitarAdopcion(animalSolicitud.id, telefono.trim(), motivo.trim());
+      notify('Solicitud enviada', `Postulaste a "${animalSolicitud.nombre}". El equipo te contactará.`, 'success');
+    } catch (err) {
+      notify('No se pudo postular', err instanceof ApiError ? err.message : 'Error de conexión', 'error');
+    }
+  };
 
   // Carga el catálogo desde la API al montar la vista.
   useEffect(() => {
@@ -197,10 +212,10 @@ const Adopciones: React.FC = () => {
                                   Ver Ficha
                                 </IonButton>
 
-                                {/*adoptar muestra un toast de confirmación*/}
+                                {/*adoptar abre el diálogo de solicitud real (POST /api/adopciones)*/}
                                 <IonButton
                                   className="m-0 flex-1"
-                                  onClick={() => mostrarToast(`Solicitud de adopción para "${animal.nombre}" enviada. El equipo se pondrá en contacto contigo.`)}
+                                  onClick={() => setAnimalSolicitud(animal)}
                                   style={{ '--background': '#000000', '--color': '#ffffff', '--border-radius': '6px', height: '38px', '--box-shadow': 'none', fontFamily: "'Inter', sans-serif", fontWeight: 500, fontSize: '13px', textTransform: 'none' }}
                                 >
                                   Adoptar
@@ -229,14 +244,20 @@ const Adopciones: React.FC = () => {
           </div>
         </div>
 
-        {/*toast de confirmación para acciones del usuario*/}
-        <IonToast
-          isOpen={showToast}
-          onDidDismiss={() => setShowToast(false)}
-          message={toastMsg}
-          duration={3500}
-          position="bottom"
-          color="success"
+        {/*diálogo de solicitud de adopción: pide teléfono y motivo (campos del backend)*/}
+        <IonAlert
+          isOpen={Boolean(animalSolicitud)}
+          onDidDismiss={() => setAnimalSolicitud(null)}
+          header={`Adoptar a "${animalSolicitud?.nombre ?? ''}"`}
+          message="Déjanos tus datos y el equipo municipal evaluará tu solicitud."
+          inputs={[
+            { name: 'telefono', type: 'tel', placeholder: 'Teléfono de contacto (+56 9 ...)' },
+            { name: 'motivo', type: 'textarea', placeholder: '¿Por qué quieres adoptarlo?' },
+          ]}
+          buttons={[
+            { text: 'Cancelar', role: 'cancel' },
+            { text: 'Enviar solicitud', handler: (data) => { enviarSolicitud(data.telefono ?? '', data.motivo ?? ''); } },
+          ]}
         />
 
       </IonContent>

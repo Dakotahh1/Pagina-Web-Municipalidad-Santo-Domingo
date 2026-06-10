@@ -1,16 +1,23 @@
 import express, { Application, Request, Response } from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 
 import animalesRoutes from './routes/animalesRoutes';
 import reportesRoutes from './routes/reportesRoutes';
 import adopcionesRoutes from './routes/adopcionesRoutes';
 import operativosRoutes from './routes/operativosRoutes';
+import foroRoutes from './routes/foroRoutes';
 import authRoutes from './routes/authRoutes';
 
 import { errorHandler } from './middlewares/errorHandler';
 import { requestLogger } from './middlewares/requestLogger';
+import { apiLimiter, authLimiter } from './middlewares/rateLimiter';
 
 const app: Application = express();
+
+// Cabeceras de seguridad HTTP (XSS, clickjacking, sniffing, etc.) — EF3.
+// crossOriginResourcePolicy: 'cross-origin' permite que el frontend consuma la API.
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
 // Orígenes permitidos por CORS (lista separada por comas en CORS_ORIGIN).
 // Por defecto admite `ionic serve` (8100) y `vite` (5173).
@@ -34,6 +41,9 @@ app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger);
 
+// Limitador general de tasa para toda la API (EF3).
+app.use('/api', apiLimiter);
+
 // Healthcheck para verificar que el servidor responde
 app.get('/api/health', (_req: Request, res: Response) => {
   res.status(200).json({
@@ -43,12 +53,14 @@ app.get('/api/health', (_req: Request, res: Response) => {
   });
 });
 
-// Montaje de rutas por recurso
-app.use('/api/auth', authRoutes);
+// Montaje de rutas por recurso.
+// Las rutas de autenticación llevan un limitador estricto (anti fuerza bruta).
+app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/animales', animalesRoutes);
 app.use('/api/reportes', reportesRoutes);
 app.use('/api/adopciones', adopcionesRoutes);
 app.use('/api/operativos', operativosRoutes);
+app.use('/api/foro', foroRoutes);
 
 // 404 — cualquier ruta no registrada cae aquí
 app.use((_req: Request, res: Response) => {

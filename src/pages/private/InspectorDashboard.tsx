@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  IonPage, IonContent, IonButton,
+  IonPage, IonContent, IonButton, IonSpinner,
   IonHeader, IonToolbar,
   IonMenu, IonMenuToggle, IonList, IonItem, IonLabel, IonIcon
 } from '@ionic/react';
@@ -8,10 +8,14 @@ import { useHistory } from 'react-router-dom';
 import {
   gridOutline, documentTextOutline, pawOutline,
   calendarOutline, hardwareChipOutline, mapOutline,
-  callOutline, warningOutline, settingsOutline, menuOutline
+  callOutline, warningOutline, settingsOutline, menuOutline,
+  trashOutline, refreshOutline
 } from 'ionicons/icons';
 import RevealWrapper from '../../components/RevealWrapper';
 import { useAuth } from '../../context/useAuth';
+import { useNotifications } from '../../context/useNotifications';
+import { getReportes, actualizarEstadoReporte, eliminarReporte, type Reporte } from '../../services/reportesService';
+import { ApiError } from '../../services/api';
 
 /*panel de gestión para inspectores municipales.
   usa IonMenu (EP 1.6) como sidebar de navegación lateral en lugar de un div estático.
@@ -25,20 +29,64 @@ import { useAuth } from '../../context/useAuth';
 const InspectorDashboard: React.FC = () => {
   const history = useHistory();
   const { logout } = useAuth();
+  const { notify } = useNotifications();
+
+  // Reportes reales desde el backend (EF1 — CRUD: Read/Update/Delete).
+  const [reportes, setReportes] = useState<Reporte[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [errorCarga, setErrorCarga] = useState('');
+
+  const cargarReportes = () => {
+    setCargando(true);
+    setErrorCarga('');
+    getReportes()
+      .then(setReportes)
+      .catch((e) => setErrorCarga(e instanceof ApiError ? e.message : 'No se pudieron cargar los reportes'))
+      .finally(() => setCargando(false));
+  };
+  useEffect(() => { cargarReportes(); }, []);
+
+  // PATCH — cambia el estado de un reporte.
+  const cambiarEstado = async (id: number, estado: string) => {
+    try {
+      const actualizado = await actualizarEstadoReporte(id, estado);
+      setReportes((prev) => prev.map((r) => (r.id === id ? actualizado : r)));
+      notify('Reporte actualizado', `Caso #${id} → ${estado}`, 'success');
+    } catch (e) {
+      notify('Error', e instanceof ApiError ? e.message : 'No se pudo actualizar', 'error');
+    }
+  };
+
+  // DELETE — elimina un reporte (con confirmación).
+  const borrarReporte = async (id: number) => {
+    if (!window.confirm(`¿Eliminar el reporte #${id}? Esta acción no se puede deshacer.`)) return;
+    try {
+      await eliminarReporte(id);
+      setReportes((prev) => prev.filter((r) => r.id !== id));
+      notify('Reporte eliminado', `Caso #${id} eliminado`, 'info');
+    } catch (e) {
+      notify('Error', e instanceof ApiError ? e.message : 'No se pudo eliminar', 'error');
+    }
+  };
+
+  // Color del badge según el estado del reporte.
+  const estadoColor = (estado: string): { bg: string; color: string } => {
+    switch (estado) {
+      case 'Pendiente':  return { bg: '#fecaca', color: '#991b1b' };
+      case 'En proceso': return { bg: '#fef08a', color: '#854d0e' };
+      case 'Resuelto':   return { bg: '#bbf7d0', color: '#166534' };
+      case 'Cerrado':    return { bg: '#e5e7eb', color: '#374151' };
+      default:           return { bg: '#e5e7eb', color: '#374151' };
+    }
+  };
+
+  const reportesActivos = reportes.filter((r) => r.estado !== 'Resuelto' && r.estado !== 'Cerrado').length;
 
   const kpis = [
-    { titulo: 'Reportes Activos',   valor: '80', subtitulo: '3 nuevos hoy',         colorValor: '#dc2626' },
+    { titulo: 'Reportes Activos',   valor: String(reportesActivos),    subtitulo: `${reportes.length} en total`,    colorValor: '#dc2626' },
     { titulo: 'Fichas de Animales', valor: '32', subtitulo: '+12 este mes',          colorValor: '#000000' },
     { titulo: 'Chips Registrados',  valor: '65', subtitulo: '73.25% cobertura',      colorValor: '#000000' },
     { titulo: 'Multas Emitidas',    valor: '14', subtitulo: '-2 vs el mes anterior', colorValor: '#d97706' },
-  ];
-
-  const reportes = [
-    { id: 'G-xxxx-xx36', tipo: 'Abandono', sector: 'La parroquia', fecha: 'Hoy 09:36', estado: 'Abierto',    bgEstado: '#fecaca', colorEstado: '#991b1b', accion: 'Atender' },
-    { id: 'G-xxxx-xx37', tipo: 'Abandono', sector: 'La parroquia', fecha: 'Hoy 09:36', estado: 'Cerrado',    bgEstado: '#bbf7d0', colorEstado: '#166534', accion: 'Ver'     },
-    { id: 'G-xxxx-xx38', tipo: 'Abandono', sector: 'La parroquia', fecha: 'Hoy 09:36', estado: 'Abierto',    bgEstado: '#fecaca', colorEstado: '#991b1b', accion: 'Atender' },
-    { id: 'G-xxxx-xx39', tipo: 'Abandono', sector: 'La parroquia', fecha: 'Hoy 09:36', estado: 'Cerrado',    bgEstado: '#bbf7d0', colorEstado: '#166534', accion: 'Ver'     },
-    { id: 'G-xxxx-xx40', tipo: 'Abandono', sector: 'La parroquia', fecha: 'Hoy 09:36', estado: 'En proceso', bgEstado: '#fef08a', colorEstado: '#854d0e', accion: 'Atender' },
   ];
 
   const menuItems = [
@@ -209,11 +257,31 @@ const InspectorDashboard: React.FC = () => {
 
                 <RevealWrapper delay={150}>
                   <div style={{ border: '1px solid #d1d5db', borderRadius: '8px', overflow: 'hidden', background: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
-                    <div style={{ padding: '20px 24px', background: '#f0f0f0', borderBottom: '1px solid #d1d5db' }}>
+                    <div style={{ padding: '20px 24px', background: '#f0f0f0', borderBottom: '1px solid #d1d5db', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <h2 style={{ fontFamily: "'Roboto Slab', serif", fontWeight: 700, fontSize: '18px', color: '#374151', margin: 0 }}>
-                        Reportes recientes
+                        Reportes ciudadanos
                       </h2>
+                      {/*recarga manual del listado*/}
+                      <button onClick={cargarReportes} title="Actualizar" style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: '#2d6aab', fontFamily: "'Inter', sans-serif", fontSize: '13px', fontWeight: 600 }}>
+                        <IonIcon icon={refreshOutline} style={{ fontSize: '18px' }} /> Actualizar
+                      </button>
                     </div>
+
+                    {/*estados de carga / error / vacío*/}
+                    {cargando && (
+                      <div style={{ padding: '40px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px' }}>
+                        <IonSpinner name="crescent" style={{ color: '#2d6aab' }} />
+                        <span style={{ fontFamily: "'Roboto Slab', serif", fontSize: '14px', color: '#6b7280' }}>Cargando reportes...</span>
+                      </div>
+                    )}
+                    {!cargando && errorCarga && (
+                      <div style={{ padding: '40px', textAlign: 'center', fontFamily: "'Roboto Slab', serif", fontSize: '14px', color: '#dc2626' }}>{errorCarga}</div>
+                    )}
+                    {!cargando && !errorCarga && reportes.length === 0 && (
+                      <div style={{ padding: '40px', textAlign: 'center', fontFamily: "'Roboto Slab', serif", fontSize: '14px', color: '#9ca3af' }}>No hay reportes registrados.</div>
+                    )}
+
+                    {!cargando && !errorCarga && reportes.length > 0 && (
                     <div style={{ overflowX: 'auto' }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                         <thead style={{ background: '#f0f0f0', borderBottom: '1px solid #d1d5db' }}>
@@ -226,33 +294,55 @@ const InspectorDashboard: React.FC = () => {
                           </tr>
                         </thead>
                         <tbody>
-                          {reportes.map((row, idx) => (
-                            <tr key={idx}
+                          {reportes.map((r, idx) => {
+                            const ec = estadoColor(r.estado);
+                            return (
+                            <tr key={r.id}
                               style={{ borderBottom: idx < reportes.length - 1 ? '1px solid #e5e7eb' : 'none', background: '#fff' }}
                               className="transition-colors duration-100 hover:bg-gray-50">
-                              <td style={{ padding: '16px 24px', fontFamily: "'Roboto Slab', serif", fontSize: '13px', color: '#4b5563', whiteSpace: 'nowrap' }}>{row.id}</td>
-                              <td style={{ padding: '16px 24px', fontFamily: "'Roboto Slab', serif", fontSize: '13px', color: '#4b5563' }}>{row.tipo}</td>
-                              <td style={{ padding: '16px 24px', fontFamily: "'Roboto Slab', serif", fontSize: '13px', color: '#4b5563' }}>{row.sector}</td>
-                              <td style={{ padding: '16px 24px', fontFamily: "'Roboto Slab', serif", fontSize: '13px', color: '#4b5563', whiteSpace: 'nowrap' }}>{row.fecha}</td>
+                              <td style={{ padding: '16px 24px', fontFamily: "'Roboto Slab', serif", fontSize: '13px', color: '#4b5563', whiteSpace: 'nowrap' }}>
+                                #{r.id}{r.urgente && <span style={{ color: '#dc2626', fontWeight: 700 }}> ·urgente</span>}
+                              </td>
+                              <td style={{ padding: '16px 24px', fontFamily: "'Roboto Slab', serif", fontSize: '13px', color: '#4b5563' }}>{r.tipo_incidente}</td>
+                              <td style={{ padding: '16px 24px', fontFamily: "'Roboto Slab', serif", fontSize: '13px', color: '#4b5563' }}>{r.sector}</td>
+                              <td style={{ padding: '16px 24px', fontFamily: "'Roboto Slab', serif", fontSize: '13px', color: '#4b5563', whiteSpace: 'nowrap' }}>
+                                {new Date(r.fecha_creacion).toLocaleDateString('es-CL', { day: '2-digit', month: 'short' })}
+                              </td>
                               <td style={{ padding: '16px 24px' }}>
-                                <span style={{ display: 'inline-block', backgroundColor: row.bgEstado, color: row.colorEstado, fontFamily: "'Roboto Slab', serif", fontWeight: 700, fontSize: '12px', padding: '5px 16px', borderRadius: '9999px', minWidth: '90px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                  {row.estado}
+                                <span style={{ display: 'inline-block', backgroundColor: ec.bg, color: ec.color, fontFamily: "'Roboto Slab', serif", fontWeight: 700, fontSize: '12px', padding: '5px 16px', borderRadius: '9999px', minWidth: '90px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                  {r.estado}
                                 </span>
                               </td>
                               <td style={{ padding: '16px 24px' }}>
-                                <button
-                                  style={{ backgroundColor: row.accion === 'Atender' ? '#241b5c' : '#d7d8e2', color: row.accion === 'Atender' ? '#ffffff' : '#111827', border: 'none', borderRadius: '6px', padding: '8px 20px', fontFamily: "'Inter', sans-serif", fontWeight: 600, fontSize: '13px', cursor: 'pointer', minWidth: '90px', boxShadow: '0 2px 4px rgba(0,0,0,0.15)', transition: 'opacity 0.15s ease' }}
-                                  onMouseEnter={e => { e.currentTarget.style.opacity = '0.85'; }}
-                                  onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
-                                >
-                                  {row.accion}
-                                </button>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  {/*PATCH: cambiar estado del reporte*/}
+                                  <select
+                                    value={r.estado}
+                                    onChange={(e) => cambiarEstado(r.id, e.target.value)}
+                                    style={{ border: '1px solid #d1d5db', borderRadius: '6px', padding: '7px 10px', fontFamily: "'Inter', sans-serif", fontSize: '13px', color: '#111827', cursor: 'pointer', background: '#fff' }}
+                                  >
+                                    <option value="Pendiente">Pendiente</option>
+                                    <option value="En proceso">En proceso</option>
+                                    <option value="Resuelto">Resuelto</option>
+                                    <option value="Cerrado">Cerrado</option>
+                                  </select>
+                                  {/*DELETE: eliminar el reporte*/}
+                                  <button
+                                    onClick={() => borrarReporte(r.id)}
+                                    title="Eliminar reporte"
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', display: 'flex', alignItems: 'center' }}
+                                  >
+                                    <IonIcon icon={trashOutline} style={{ fontSize: '18px' }} />
+                                  </button>
+                                </div>
                               </td>
                             </tr>
-                          ))}
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
+                    )}
                   </div>
                 </RevealWrapper>
 

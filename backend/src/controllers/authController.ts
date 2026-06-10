@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import prisma from '../lib/prismaClient';
 import { generateToken } from '../utils/jwt.utils';
 import { ok, created, badRequest, unauthorized } from '../utils/responseHelper';
+import { sanitizeShort } from '../utils/sanitize';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/auth/login
@@ -109,12 +110,12 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
     const nuevoUsuario = await prisma.usuario.create({
       data: {
-        nombre_completo: nombre,
+        nombre_completo: sanitizeShort(nombre, 120),
         rut,
         correo,
         password_hash,
-        region,
-        comuna,
+        region: sanitizeShort(region, 80),
+        comuna: sanitizeShort(comuna, 80),
         rol_id: rolVecino.id,
       },
       include: { rol: true },

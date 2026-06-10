@@ -8,6 +8,9 @@ const router = Router();
 router.get   ('/',     ctrl.getOperativos);
 router.get   ('/:id',  ctrl.getOperativoById);
 
+// Inscripción del vecino (cualquier usuario autenticado) — decremento atómico de cupos
+router.post  ('/:id/inscribir', verifyJWT, ctrl.inscribirse);
+
 // Gestión — solo funcionarios e inspectores
 router.post  ('/',     verifyJWT, requireRole(['funcionario', 'inspector']), ctrl.createOperativo);
 router.put   ('/:id',  verifyJWT, requireRole(['funcionario', 'inspector']), ctrl.replaceOperativo);

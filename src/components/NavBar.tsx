@@ -2,6 +2,7 @@ import React from 'react';
 import { IonHeader, IonToolbar } from '@ionic/react';
 import { useHistory, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
+import NotificationBell from './NotificationBell';
 
 /*navbar reutilizable para todas las páginas privadas (inicio, adopciones, foro, operativos, etc.).
   detecta la ruta activa automáticamente con useLocation, así no necesita props.
@@ -69,18 +70,21 @@ const NavBar: React.FC = () => {
             ))}
           </nav>
 
-          {/*botón cerrar sesión*/}
-          <button
-            onClick={handleLogout}
-            style={{
-              background: '#000000', color: '#ffffff', borderRadius: '6px', border: 'none',
-              fontFamily: "'Inter', sans-serif", fontWeight: 500, fontSize: '15px',
-              textTransform: 'none', height: '40px', padding: '0 20px',
-              cursor: 'pointer', whiteSpace: 'nowrap',
-            }}
-          >
-            Cerrar Sesión
-          </button>
+          {/*campana de notificaciones + botón cerrar sesión*/}
+          <div className="flex items-center gap-2">
+            <NotificationBell />
+            <button
+              onClick={handleLogout}
+              style={{
+                background: '#000000', color: '#ffffff', borderRadius: '6px', border: 'none',
+                fontFamily: "'Inter', sans-serif", fontWeight: 500, fontSize: '15px',
+                textTransform: 'none', height: '40px', padding: '0 20px',
+                cursor: 'pointer', whiteSpace: 'nowrap',
+              }}
+            >
+              Cerrar Sesión
+            </button>
+          </div>
 
         </div>
       </IonToolbar>

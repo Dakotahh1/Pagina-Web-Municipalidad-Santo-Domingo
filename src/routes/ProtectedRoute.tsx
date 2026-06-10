@@ -9,7 +9,9 @@ import type { UserRole } from '../services/authService';
    - Con sesión y rol permitido → renderiza la vista solicitada. */
 
 interface ProtectedRouteProps extends RouteProps {
-  component: React.ComponentType<Record<string, unknown>>;
+  // ComponentType<any> admite tanto componentes normales como los cargados con React.lazy.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  component: React.ComponentType<any>;
   allowedRoles?: UserRole[];
 }
 

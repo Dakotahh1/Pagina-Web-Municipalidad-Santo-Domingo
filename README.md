@@ -530,6 +530,31 @@ Cada endpoint y middleware de control de accesos fue sometido a pruebas funciona
 
 ---
 
+# Entrega Final: Funcionalidades Avanzadas, Rendimiento y Seguridad
+
+## EF 1: Funcionalidades Completas (CRUD, Notificaciones, Almacenamiento Local)
+
+- **CRUD de Reportes end-to-end:** el vecino crea reportes (`POST /api/reportes`) desde el formulario; el funcionario/inspector los lista (`GET`), cambia su estado (`PATCH`) y los elimina (`DELETE`) desde el panel de gestión, con control de roles en el backend.
+- **Notificaciones:** sistema global (`NotificationContext`) con *toasts* y una campana en la barra de navegación que muestra el contador de no leídas. Cada acción (enviar reporte, cambiar estado, eliminar) genera una notificación.
+- **Almacenamiento local:** el historial de notificaciones y el borrador del formulario de reporte se persisten en `localStorage` (el borrador sobrevive a recargas y se limpia al enviar).
+
+## EF 2: Mejoras de UI/UX y Optimización de Rendimiento
+
+- **Code-splitting por ruta** con `React.lazy` + `Suspense`: cada vista se descarga en su propio *chunk*. El bundle principal bajó de ~1.4 MB a ~178 kB.
+- **Separación de vendors** (`manualChunks`): React e Ionic quedan en *chunks* cacheables independientes.
+- **Estados de carga, error y vacío** consistentes en las vistas que consumen la API, indicador de carga entre vistas (`Suspense`) y **ruta 404**.
+
+## EF 3: Seguridad Avanzada en la API
+
+- **Cabeceras de seguridad (helmet):** CSP, `X-Frame-Options`, `X-Content-Type-Options`, HSTS, `Referrer-Policy`.
+- **Rate limiting (express-rate-limit):** limitador general para `/api` y uno estricto para `/api/auth` (anti fuerza bruta).
+- **Sanitización anti-XSS:** el texto libre se limpia de etiquetas HTML antes de persistir (defensa en profundidad).
+- **CORS seguro:** *whitelist* de orígenes configurable por variable de entorno.
+- **Inyección SQL:** consultas parametrizadas mediante Prisma ORM.
+- **Datos sensibles:** contraseñas con *hash* bcrypt (10 *salt rounds*).
+
+---
+
 ## Equipo de Desarrollo
 
 | Nombre | Rol |

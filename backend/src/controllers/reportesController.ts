@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../lib/prismaClient';
 import { ok, created, list, badRequest, notFound, noContent } from '../utils/responseHelper';
+import { sanitizeText, sanitizeShort } from '../utils/sanitize';
 
 // GET /api/reportes?estado=Pendiente&urgente=true
 export const getReportes = async (req: Request, res: Response): Promise<void> => {
@@ -45,7 +46,7 @@ export const createReporte = async (req: Request, res: Response): Promise<void> 
       badRequest(res, 'Faltan campos obligatorios', { required: ['tipo', 'descripcion', 'ubicacion'] });
       return;
     }
-    const tiposValidos = ['Abandono', 'Animal herido', 'Mordedura', 'Tenencia irresponsable'];
+    const tiposValidos = ['Abandono', 'Animal herido', 'Animal muerto', 'Mordedura', 'Tenencia irresponsable', 'Otro'];
     if (!tiposValidos.includes(tipo)) {
       badRequest(res, `Tipo inválido. Debe ser uno de: ${tiposValidos.join(', ')}`);
       return;
@@ -55,14 +56,21 @@ export const createReporte = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
+    // Sanitiza el texto libre antes de persistir (anti-XSS almacenado — EF3).
+    const descripcionLimpia = sanitizeText(descripcion, 1000);
+    if (!descripcionLimpia) {
+      badRequest(res, 'La descripción no puede quedar vacía tras la validación');
+      return;
+    }
+
     const reporte = await prisma.reporte.create({
       data: {
         usuario_id: parseInt(req.usuario!.sub),
         tipo_incidente: tipo,
-        descripcion,
+        descripcion: descripcionLimpia,
         latitud: ubicacion.lat,
         longitud: ubicacion.lng,
-        sector: ubicacion.sector,
+        sector: sanitizeShort(ubicacion.sector, 120),
         urgente: req.body.urgente ?? false,
         estado: 'Pendiente',
         fotos: req.body.fotos ?? [],

@@ -9,3 +9,15 @@ export type { UserRole, AuthUser, LoginCredentials, RegisterData } from './authS
 
 export { getAnimales, getAnimalById, toCard } from './animalesService';
 export type { Animal, AnimalCard } from './animalesService';
+
+export { getReportes, crearReporte, actualizarEstadoReporte, eliminarReporte } from './reportesService';
+export type { Reporte, NuevoReporte } from './reportesService';
+
+export { getOperativos, inscribirseOperativo } from './operativosService';
+export type { Operativo } from './operativosService';
+
+export { getPublicaciones, crearPublicacion } from './foroService';
+export type { Publicacion } from './foroService';
+
+export { solicitarAdopcion } from './adopcionesService';
+export type { SolicitudAdopcion } from './adopcionesService';

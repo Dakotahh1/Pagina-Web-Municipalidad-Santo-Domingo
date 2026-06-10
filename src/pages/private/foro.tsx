@@ -1,115 +1,127 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   IonPage, IonContent, IonButton,
   IonGrid, IonRow, IonCol,
-  IonCard, IonCardContent, IonToast
+  IonCard, IonCardContent, IonSpinner
 } from '@ionic/react';
+import { useHistory } from 'react-router-dom';
 
 import NavBar from '../../components/NavBar';
 import RevealWrapper from '../../components/RevealWrapper';
+import { getPublicaciones, crearPublicacion, getOperativos, ApiError, type Publicacion } from '../../services';
+import { useNotifications } from '../../context/useNotifications';
 
-/*página del foro vecinal. permite a los vecinos publicar avisos, reportar animales abandonados
-  y leer comunicados oficiales de la municipalidad.
+/* Foro vecinal (EF1 — integración real).
+   El feed se carga desde GET /api/foro (PostgreSQL) y las publicaciones nuevas se
+   crean con POST /api/foro a nombre del usuario en sesión (el backend sanitiza el
+   texto). Las categorías del sidebar se calculan con los datos reales del feed. */
 
-  tiene dos columnas: la principal con el feed de publicaciones y una barra lateral
-  con categorías, línea directa y próximos operativos*/
+// Estilo visual de la etiqueta según la categoría persistida en la BD.
+const ETIQUETAS: Record<string, { label: string; bg: string; color: string }> = {
+  Abandono: { label: 'Abandono', bg: 'rgba(255, 186, 186, 0.5)', color: '#991b1b' },
+  Adopcion: { label: 'Adopción', bg: 'rgba(72, 255, 63, 0.31)', color: '#15803d' },
+  Consulta: { label: 'Consulta', bg: 'rgba(215, 215, 215, 0.5)', color: '#374151' },
+  Reclamo: { label: 'Reclamo', bg: 'rgba(255, 208, 0, 0.31)', color: '#854d0e' },
+  General: { label: 'General', bg: 'rgba(186, 231, 255, 0.5)', color: '#0369a1' },
+};
+
+const CATEGORIAS_PUBLICAR = ['General', 'Abandono', 'Adopcion', 'Consulta', 'Reclamo'];
+
+// Convierte la fecha de publicación en un texto relativo legible.
+const tiempoRelativo = (iso: string): string => {
+  const ms = Date.now() - new Date(iso).getTime();
+  const minutos = Math.floor(ms / 60000);
+  if (minutos < 1) return 'Recién publicado';
+  if (minutos < 60) return `Hace ${minutos} min`;
+  const horas = Math.floor(minutos / 60);
+  if (horas < 24) return `Hace ${horas} ${horas === 1 ? 'hora' : 'horas'}`;
+  const dias = Math.floor(horas / 24);
+  if (dias < 7) return `Hace ${dias} ${dias === 1 ? 'día' : 'días'}`;
+  return new Date(iso).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' });
+};
 
 const Foro: React.FC = () => {
-  const [contenido, setContenido]   = useState('');
-  const [inputError, setInputError] = useState(''); //mensaje de validación del campo de texto
-  const [showToast, setShowToast]   = useState(false);
-  const [toastMsg, setToastMsg]     = useState('');
-  const [toastColor, setToastColor] = useState<'success' | 'danger'>('success');
+  const history = useHistory();
+  const { notify } = useNotifications();
 
-  const mostrarToast = (msg: string, color: 'success' | 'danger' = 'success') => {
-    setToastMsg(msg);
-    setToastColor(color);
-    setShowToast(true);
-  };
+  const [publicaciones, setPublicaciones] = useState<Publicacion[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [errorCarga, setErrorCarga] = useState('');
 
-  /*valida que el campo no esté vacío antes de publicar.
-    si pasa la validación, limpia el input y muestra confirmación*/
-  const handlePublicar = () => {
+  // Formulario de nueva publicación.
+  const [titulo, setTitulo] = useState('');
+  const [contenido, setContenido] = useState('');
+  const [categoria, setCategoria] = useState('General');
+  const [inputError, setInputError] = useState('');
+  const [publicando, setPublicando] = useState(false);
+
+  // Próximos operativos del sidebar (datos reales).
+  const [proximosOperativos, setProximosOperativos] = useState<{ fecha: string; titulo: string }[]>([]);
+
+  // Carga el feed y los operativos del sidebar al montar.
+  useEffect(() => {
+    let activo = true;
+    getPublicaciones()
+      .then((data) => { if (activo) setPublicaciones(data); })
+      .catch((err) => {
+        if (activo) setErrorCarga(err instanceof ApiError ? err.message : 'No se pudo cargar el foro.');
+      })
+      .finally(() => { if (activo) setCargando(false); });
+
+    getOperativos()
+      .then((ops) => {
+        if (!activo) return;
+        setProximosOperativos(
+          ops
+            .filter((o) => o.estado === 'Programado')
+            .slice(0, 3)
+            .map((o) => ({
+              fecha: new Date(o.fecha_evento).toLocaleDateString('es-CL', { day: '2-digit', month: 'short' }),
+              titulo: o.titulo,
+            })),
+        );
+      })
+      .catch(() => { /* el sidebar de operativos es secundario; se omite si falla */ });
+
+    return () => { activo = false; };
+  }, []);
+
+  /* Valida y publica contra el backend; la publicación creada se antepone al feed. */
+  const handlePublicar = async () => {
+    if (titulo.trim().length < 5) {
+      setInputError('el título es muy corto, escribe al menos 5 caracteres');
+      return;
+    }
     if (contenido.trim().length < 10) {
-      setInputError('el texto es muy corto, escribe al menos 10 caracteres antes de publicar');
+      setInputError('el contenido es muy corto, escribe al menos 10 caracteres antes de publicar');
       return;
     }
     setInputError('');
-    setContenido('');
-    mostrarToast('tu publicación fue enviada al foro vecinal');
+    setPublicando(true);
+    try {
+      const post = await crearPublicacion(titulo.trim(), contenido.trim(), categoria);
+      setPublicaciones((prev) => [post, ...prev]);
+      setTitulo('');
+      setContenido('');
+      setCategoria('General');
+      notify('Publicación creada', 'Tu mensaje ya está visible en el foro vecinal', 'success');
+    } catch (err) {
+      notify('No se pudo publicar', err instanceof ApiError ? err.message : 'Error de conexión', 'error');
+    } finally {
+      setPublicando(false);
+    }
   };
 
-  //notifica al usuario que el reporte fue recibido por la municipalidad
-  const handleReportar = () => {
-    mostrarToast('tu reporte fue enviado. el personal municipal lo revisará en 24-48 hrs');
-  };
+  // Categorías del sidebar con conteo real por tipo.
+  const categoriasSidebar = CATEGORIAS_PUBLICAR.map((cat) => ({
+    nombre: ETIQUETAS[cat].label,
+    cantidad: publicaciones.filter((p) => p.categoria === cat).length,
+    bg: ETIQUETAS[cat].bg,
+    color: ETIQUETAS[cat].color,
+  }));
 
-  /*publicaciones del foro. cada una tiene autor, tiempo, ubicación, etiqueta con color,
-    título, contenido, adjunto opcional y contadores de likes y respuestas.
-    las publicaciones con mostrarBotonReportar=true son las que tienen contenido reportable*/
-  const publicaciones = [
-    {
-      id: 1,
-      autor: 'María González',
-      tiempo: 'Hace 2 horas',
-      ubicacion: 'Sector La Parroquia',
-      etiqueta: 'Abandono',
-      colorFondoEtiqueta: 'rgba(255, 186, 186, 0.5)',
-      colorTextoEtiqueta: '#991b1b',
-      titulo: 'Perro abandonado frente a la plaza, lleva 3 días en la calle',
-      contenido: 'Vi esta mañana un perro mediano, color café, que lleva varios días en la plaza de la parroquia en el centro. Parece manso y tiene collar pero sin placa. ¿Alguien sabe si ya fue reportado a la muni?',
-      adjunto: '1 Fotografía adjunta - Sector la parroquia',
-      likes: 14,
-      respuestas: 8,
-      mostrarBotonReportar: true,
-    },
-    {
-      id: 2,
-      autor: 'Municipalidad de Santo Domingo',
-      tiempo: 'Ayer 18:36 hrs',
-      ubicacion: 'Comunicado oficial',
-      etiqueta: 'Oficial',
-      colorFondoEtiqueta: 'rgba(186, 231, 255, 0.5)',
-      colorTextoEtiqueta: '#0369a1',
-      titulo: 'Operativo de vacunación antirrábica — Sector Norte, 23 de mayo',
-      contenido: 'Informamos a la comunidad que el sábado 23 de mayo se realizará un operativo gratuito de vacunación antirrábica en el Gimnasio Municipal. Nuestro personal se encontrará de 09:00 a 14:00 hrs. Por favor traer a sus mascotas con correa o transporte.',
-      adjunto: null,
-      likes: 42,
-      respuestas: 5,
-      mostrarBotonReportar: false,
-    },
-    {
-      id: 3,
-      autor: 'Ariel Villar',
-      tiempo: 'Hace 2 días',
-      ubicacion: 'Sector Huerto las Parcelas',
-      etiqueta: 'Adopción',
-      colorFondoEtiqueta: 'rgba(72, 255, 63, 0.31)',
-      colorTextoEtiqueta: '#15803d',
-      titulo: 'Busco hogar temporal para gatita rescatada',
-      contenido: 'Encontré una gatita de aproximadamente 2 meses cerca de las parcelas. Lamentablemente no puedo quedármela porque mis perros no la aceptan. ¿Alguien tiene un espacio temporal mientras le buscamos familia definitiva?',
-      adjunto: null,
-      likes: 27,
-      respuestas: 12,
-      mostrarBotonReportar: false,
-    },
-  ];
-
-  /*categorías de la barra lateral con su cantidad de publicaciones.
-    los colores coinciden con los colores de etiqueta del feed*/
-  const categorias = [
-    { nombre: 'Abandono / Rescate',    cantidad: 22, bg: 'rgba(255, 186, 186, 0.5)', color: '#991b1b' },
-    { nombre: 'Adopciones',            cantidad: 19, bg: 'rgba(72, 255, 63, 0.31)',  color: '#15803d' },
-    { nombre: 'Comunicados oficiales', cantidad: 8,  bg: 'rgba(186, 231, 255, 0.5)', color: '#0369a1' },
-    { nombre: 'Consultas vecinales',   cantidad: 30, bg: 'rgba(215, 215, 215, 0.5)', color: '#374151' },
-    { nombre: 'Reclamos',              cantidad: 2,  bg: 'rgba(255, 208, 0, 0.31)',  color: '#854d0e' },
-  ];
-
-  //operativos próximos que se muestran en la sidebar como recordatorio
-  const proximosOperativos = [
-    { fecha: '23 May', titulo: 'Vacunación gratuita'    },
-    { fecha: '09 Jun', titulo: 'Esterilización gratuita' },
-  ];
+  const esOficial = (post: Publicacion) =>
+    post.usuario?.rol?.nombre === 'funcionario' || post.usuario?.rol?.nombre === 'inspector';
 
   return (
     <IonPage>
@@ -119,7 +131,7 @@ const Foro: React.FC = () => {
 
       <IonContent fullscreen style={{ '--background': '#f8fafc' }}>
 
-        {/*encabezado de la sección con fondo celeste suave*/}
+        {/*encabezado de la sección*/}
         <div style={{ backgroundColor: '#eef6fc', padding: '48px 32px' }}>
           <RevealWrapper>
             <div className="max-w-[1200px] mx-auto px-4 md:px-8">
@@ -130,100 +142,134 @@ const Foro: React.FC = () => {
                 Foro Vecinal — Bienestar Animal
               </h1>
               <p className="font-slab text-[15px] text-gray-500 m-0">
-                Reporte abandonos, coordina adopciones y comunícate con la municipalidad.
+                Reporta abandonos, coordina adopciones y comunícate con la municipalidad.
               </p>
             </div>
           </RevealWrapper>
         </div>
 
-        {/*contenido principal del foro: feed de publicaciones y barra lateral*/}
         <div className="py-8">
           <div className="max-w-[1200px] mx-auto px-4 md:px-8">
             <IonGrid className="ion-no-padding">
               <IonRow className="justify-between">
 
-                {/*columna principal: formulario de nueva publicación + feed de posts*/}
+                {/*columna principal: formulario de publicación + feed real*/}
                 <IonCol size="12" sizeLg="7" sizeXl="8" className="pr-0 lg:pr-8">
 
-                  {/*tarjeta para crear una nueva publicación en el foro*/}
+                  {/*tarjeta para crear una publicación (POST /api/foro)*/}
                   <RevealWrapper>
                     <IonCard className="m-0 mb-6 shadow-sm border border-gray-200" style={{ '--background': '#ffffff', '--border-radius': '8px' }}>
                       <IonCardContent className="p-6">
                         <div className="flex gap-4 items-start mb-4">
 
-                          {/*avatar placeholder del usuario — en producción mostraría la foto del vecino*/}
+                          {/*avatar genérico del usuario en sesión*/}
                           <div className="w-12 h-12 rounded-full bg-gray-200 shrink-0" />
 
-                          <div className="w-full">
+                          <div className="w-full flex flex-col gap-3">
                             <input
                               type="text"
-                              value={contenido}
-                              onChange={e => {
-                                setContenido(e.target.value);
-                                if (inputError) setInputError('');
-                              }}
-                              placeholder="¿Qué quieres publicar en el foro?"
+                              value={titulo}
+                              onChange={e => { setTitulo(e.target.value); if (inputError) setInputError(''); }}
+                              placeholder="Título de tu publicación"
                               className="w-full bg-gray-100 border border-gray-300 rounded-lg px-4 py-3 outline-none
                                          focus:border-blue-400 transition-colors duration-150"
                               style={{ fontFamily: "'Roboto Slab', serif", fontSize: '14px', color: '#333' }}
                             />
+                            <textarea
+                              value={contenido}
+                              onChange={e => { setContenido(e.target.value); if (inputError) setInputError(''); }}
+                              placeholder="¿Qué quieres compartir con la comunidad?"
+                              rows={3}
+                              maxLength={2000}
+                              className="w-full bg-gray-100 border border-gray-300 rounded-lg px-4 py-3 outline-none
+                                         focus:border-blue-400 transition-colors duration-150"
+                              style={{ fontFamily: "'Roboto Slab', serif", fontSize: '14px', color: '#333', resize: 'vertical' }}
+                            />
 
-                            {/*mensaje de error si el campo está vacío al intentar publicar*/}
+                            {/*selector de categoría de la publicación*/}
+                            <div className="flex flex-wrap gap-2">
+                              {CATEGORIAS_PUBLICAR.map((cat) => (
+                                <button
+                                  key={cat}
+                                  onClick={() => setCategoria(cat)}
+                                  style={{
+                                    backgroundColor: categoria === cat ? ETIQUETAS[cat].bg : '#f3f4f6',
+                                    color: categoria === cat ? ETIQUETAS[cat].color : '#6b7280',
+                                    border: categoria === cat ? '1px solid currentColor' : '1px solid #e5e7eb',
+                                    padding: '4px 14px', borderRadius: '16px', cursor: 'pointer',
+                                    fontFamily: "'Roboto Slab', serif", fontWeight: 600, fontSize: '12px',
+                                  }}
+                                >
+                                  {ETIQUETAS[cat].label}
+                                </button>
+                              ))}
+                            </div>
+
+                            {/*mensaje de validación del formulario*/}
                             {inputError && (
-                              <p className="font-slab text-xs text-red-600 mt-1.5 m-0">{inputError}</p>
+                              <p className="font-slab text-xs text-red-600 m-0">{inputError}</p>
                             )}
                           </div>
                         </div>
 
-                        <div className="flex justify-between items-center ml-16">
-                          <div className="flex gap-2">
-                            <IonButton fill="outline" style={{ '--border-radius': '20px', '--border-color': '#93c5fd', '--color': '#1e3a8a', '--background': '#eff6ff', height: '36px', fontFamily: 'Roboto Slab', fontWeight: 500, fontSize: '13px', textTransform: 'none', margin: 0 }}>
-                              Adjuntar Foto
-                            </IonButton>
-                            <IonButton fill="outline" style={{ '--border-radius': '20px', '--border-color': '#93c5fd', '--color': '#1e3a8a', '--background': '#eff6ff', height: '36px', fontFamily: 'Roboto Slab', fontWeight: 500, fontSize: '13px', textTransform: 'none', margin: 0 }}>
-                              Establecer ubicación
-                            </IonButton>
-                          </div>
-
-                          {/*botón de publicar — valida antes de enviar*/}
+                        <div className="flex justify-end items-center">
+                          {/*botón de publicar — envía al backend*/}
                           <IonButton
                             onClick={handlePublicar}
+                            disabled={publicando}
                             style={{ '--background': '#B01717', '--color': '#ffffff', '--border-radius': '6px', height: '38px', fontFamily: 'Roboto Slab', fontWeight: 600, fontSize: '14px', textTransform: 'none', margin: 0 }}
                           >
-                            Publicar
+                            {publicando ? 'Publicando...' : 'Publicar'}
                           </IonButton>
                         </div>
                       </IonCardContent>
                     </IonCard>
                   </RevealWrapper>
 
-                  {/*feed de publicaciones del foro, ordenadas de más reciente a más antigua*/}
-                  {publicaciones.map((post, idx) => (
-                    <RevealWrapper key={post.id} delay={idx * 100}>
+                  {/*estados de carga y error del feed*/}
+                  {cargando && (
+                    <div className="flex flex-col items-center justify-center py-16 gap-4">
+                      <IonSpinner name="crescent" style={{ color: '#2d6aab' }} />
+                      <p className="font-slab text-sm text-gray-500 m-0">Cargando publicaciones...</p>
+                    </div>
+                  )}
+                  {!cargando && errorCarga && (
+                    <p className="font-slab text-sm text-red-600 text-center py-12">{errorCarga}</p>
+                  )}
+                  {!cargando && !errorCarga && publicaciones.length === 0 && (
+                    <p className="font-slab text-sm text-gray-500 text-center py-12">Aún no hay publicaciones. ¡Sé el primero en escribir!</p>
+                  )}
+
+                  {/*feed real de publicaciones, de más reciente a más antigua*/}
+                  {!cargando && !errorCarga && publicaciones.map((post, idx) => {
+                    const etiqueta = esOficial(post)
+                      ? { label: 'Oficial', bg: 'rgba(186, 231, 255, 0.5)', color: '#0369a1' }
+                      : ETIQUETAS[post.categoria] ?? ETIQUETAS.General;
+                    return (
+                    <RevealWrapper key={post.id} delay={Math.min(idx, 4) * 100}>
                       <IonCard
                         className="m-0 mb-6 shadow-sm border border-gray-200 transition-shadow duration-200 hover:shadow-md"
                         style={{ '--background': '#ffffff', '--border-radius': '8px' }}
                       >
                         <IonCardContent className="p-6">
 
-                          {/*cabecera del post: avatar, autor, tiempo, ubicación y etiqueta de categoría*/}
+                          {/*cabecera: autor, tiempo relativo y etiqueta de categoría*/}
                           <div className="flex justify-between items-start mb-4">
                             <div className="flex gap-3 items-center">
                               <div className="w-12 h-12 rounded-full bg-gray-200 shrink-0" />
                               <div>
                                 <h3 style={{ fontFamily: 'Roboto Slab', fontWeight: 700, fontSize: '16px', color: '#000000', margin: '0 0 2px 0' }}>
-                                  {post.autor}
+                                  {post.usuario?.nombre_completo ?? 'Vecino/a'}
                                 </h3>
                                 <p style={{ fontFamily: 'Roboto Slab', fontWeight: 400, fontSize: '12px', color: '#64748b', margin: 0 }}>
-                                  {post.tiempo} • {post.ubicacion}
+                                  {tiempoRelativo(post.fecha_publicacion)}
                                 </p>
                               </div>
                             </div>
 
-                            {/*etiqueta de categoría con color según el tipo de publicación*/}
-                            <div style={{ backgroundColor: post.colorFondoEtiqueta, padding: '4px 16px', borderRadius: '16px' }}>
-                              <span style={{ fontFamily: 'Roboto Slab', fontWeight: 600, fontSize: '12px', color: post.colorTextoEtiqueta }}>
-                                {post.etiqueta}
+                            <div style={{ backgroundColor: etiqueta.bg, padding: '4px 16px', borderRadius: '16px' }}>
+                              <span style={{ fontFamily: 'Roboto Slab', fontWeight: 600, fontSize: '12px', color: etiqueta.color }}>
+                                {etiqueta.label}
                               </span>
                             </div>
                           </div>
@@ -235,49 +281,35 @@ const Foro: React.FC = () => {
                             {post.contenido}
                           </p>
 
-                          {/*adjunto de foto si la publicación tiene uno*/}
-                          {post.adjunto && (
-                            <div className="bg-gray-100 rounded-lg p-4 mb-4">
-                              <span style={{ fontFamily: 'Roboto Slab', fontWeight: 500, fontSize: '13px', color: '#64748b' }}>
-                                {post.adjunto}
-                              </span>
-                            </div>
-                          )}
-
-                          {/*pie de post: likes, respuestas y botón de reporte si aplica*/}
-                          <div className="flex justify-between items-center mt-2 border-t border-gray-100 pt-4">
-                            <span style={{ fontFamily: 'Roboto Slab', fontWeight: 500, fontSize: '12px', color: '#64748b' }}>
-                              {post.likes} Likes • {post.respuestas} respuestas • Compartir
-                            </span>
-
-                            {/*el botón reportar solo aparece en publicaciones ciudadanas, no en las oficiales.
-                              incluye una aclaración en rojo de qué implica reportar*/}
-                            {post.mostrarBotonReportar && (
+                          {/*pie: en publicaciones de abandono se ofrece el flujo formal de reporte*/}
+                          {post.categoria === 'Abandono' && !esOficial(post) && (
+                            <div className="flex justify-end items-center mt-2 border-t border-gray-100 pt-4">
                               <div className="flex flex-col items-end gap-1">
                                 <IonButton
-                                  onClick={() => handleReportar()}
+                                  onClick={() => history.push('/app/reportar')}
                                   style={{ '--background': '#B01717', '--color': '#ffffff', '--border-radius': '6px', height: '32px', fontFamily: 'Roboto Slab', fontWeight: 500, fontSize: '13px', textTransform: 'none', margin: 0 }}
                                 >
-                                  Reportar
+                                  Reportar a la municipalidad
                                 </IonButton>
                                 <p className="font-slab text-[11px] text-red-600 m-0 text-right">
-                                  notificará a los moderadores municipales
+                                  abre el formulario oficial de reportes
                                 </p>
                               </div>
-                            )}
-                          </div>
+                            </div>
+                          )}
 
                         </IonCardContent>
                       </IonCard>
                     </RevealWrapper>
-                  ))}
+                    );
+                  })}
 
                 </IonCol>
 
-                {/*barra lateral con categorías, línea directa y próximos operativos*/}
+                {/*barra lateral: categorías reales, línea directa y próximos operativos*/}
                 <IonCol size="12" sizeLg="5" sizeXl="4" className="flex flex-col gap-6">
 
-                  {/*categorías disponibles con contador de publicaciones por tipo*/}
+                  {/*categorías con conteo real de publicaciones por tipo*/}
                   <RevealWrapper delay={150}>
                     <IonCard className="m-0 shadow-sm border border-gray-200" style={{ '--background': '#ffffff', '--border-radius': '8px' }}>
                       <IonCardContent className="p-6">
@@ -285,8 +317,8 @@ const Foro: React.FC = () => {
                           Categorías
                         </h2>
                         <div className="flex flex-col">
-                          {categorias.map((cat, index) => (
-                            <div key={index} className="flex justify-between items-center py-3 border-b border-gray-100 last:border-0 cursor-pointer hover:bg-gray-50 transition-colors duration-150 rounded px-1">
+                          {categoriasSidebar.map((cat, index) => (
+                            <div key={index} className="flex justify-between items-center py-3 border-b border-gray-100 last:border-0 rounded px-1">
                               <span style={{ fontFamily: 'Roboto Slab', fontWeight: 500, fontSize: '14px', color: '#475569' }}>
                                 {cat.nombre}
                               </span>
@@ -302,7 +334,7 @@ const Foro: React.FC = () => {
                     </IonCard>
                   </RevealWrapper>
 
-                  {/*contacto directo con la municipalidad para situaciones urgentes*/}
+                  {/*contacto directo con la municipalidad*/}
                   <RevealWrapper delay={250}>
                     <IonCard className="m-0 shadow-sm border border-gray-200" style={{ '--background': '#ffffff', '--border-radius': '8px' }}>
                       <IonCardContent className="p-6">
@@ -324,13 +356,16 @@ const Foro: React.FC = () => {
                     </IonCard>
                   </RevealWrapper>
 
-                  {/*calendario de los próximos operativos veterinarios en la comuna*/}
+                  {/*próximos operativos desde la API*/}
                   <RevealWrapper delay={350}>
                     <IonCard className="m-0 shadow-sm border border-gray-200" style={{ '--background': '#ffffff', '--border-radius': '8px' }}>
                       <IonCardContent className="p-6">
                         <h2 style={{ fontFamily: 'Roboto Slab', fontWeight: 700, fontSize: '18px', color: '#000000', marginBottom: '20px' }}>
                           Próximos operativos
                         </h2>
+                        {proximosOperativos.length === 0 ? (
+                          <p className="font-slab text-sm text-gray-500 m-0">No hay operativos programados.</p>
+                        ) : (
                         <div className="flex flex-col">
                           {proximosOperativos.map((op, index) => (
                             <div key={index} className="flex gap-4 items-center py-3 border-b border-gray-100 last:border-0">
@@ -343,6 +378,7 @@ const Foro: React.FC = () => {
                             </div>
                           ))}
                         </div>
+                        )}
                       </IonCardContent>
                     </IonCard>
                   </RevealWrapper>
@@ -352,16 +388,6 @@ const Foro: React.FC = () => {
             </IonGrid>
           </div>
         </div>
-
-        {/*toast para confirmaciones de publicación y reporte*/}
-        <IonToast
-          isOpen={showToast}
-          onDidDismiss={() => setShowToast(false)}
-          message={toastMsg}
-          duration={3500}
-          position="bottom"
-          color={toastColor}
-        />
 
       </IonContent>
     </IonPage>

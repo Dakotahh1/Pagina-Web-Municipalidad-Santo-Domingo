@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../lib/prismaClient';
-import { ok, created, list, badRequest, notFound, noContent } from '../utils/responseHelper';
+import { ok, created, list, badRequest, notFound, noContent, conflict } from '../utils/responseHelper';
 
 // GET /api/operativos?estado=Programado&tipo=Vacunación
 export const getOperativos = async (req: Request, res: Response): Promise<void> => {
@@ -106,6 +106,42 @@ export const replaceOperativo = async (req: Request, res: Response): Promise<voi
     });
     ok(res, operativo, 'Operativo actualizado completamente');
   } catch (error) {
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno' } });
+  }
+};
+
+// POST /api/operativos/:id/inscribir — el vecino autenticado se inscribe (RF-04).
+// El decremento de cupos es atómico: el updateMany condicionado (cupos > 0) y la
+// creación de la inscripción ocurren en una misma transacción; si el usuario ya
+// estaba inscrito (índice único), todo se revierte.
+export const inscribirse = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) { badRequest(res, 'ID inválido'); return; }
+
+    const existe = await prisma.operativo.findUnique({ where: { id } });
+    if (!existe) { notFound(res, `Operativo con id ${id} no encontrado`); return; }
+    if (existe.estado !== 'Programado') {
+      conflict(res, `El operativo no admite inscripciones (estado: ${existe.estado})`);
+      return;
+    }
+
+    const inscripcion = await prisma.$transaction(async (tx) => {
+      const decremento = await tx.operativo.updateMany({
+        where: { id, cupos_disponibles: { gt: 0 } },
+        data: { cupos_disponibles: { decrement: 1 } },
+      });
+      if (decremento.count === 0) throw new Error('SIN_CUPOS');
+      return tx.inscripcionOperativo.create({
+        data: { operativo_id: id, usuario_id: parseInt(req.usuario!.sub) },
+      });
+    });
+
+    const actualizado = await prisma.operativo.findUnique({ where: { id } });
+    created(res, { inscripcion, cupos_disponibles: actualizado?.cupos_disponibles }, 'Inscripción confirmada');
+  } catch (error: any) {
+    if (error?.code === 'P2002') { conflict(res, 'Ya estás inscrito en este operativo'); return; }
+    if (error?.message === 'SIN_CUPOS') { conflict(res, 'No quedan cupos disponibles'); return; }
     res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Error interno' } });
   }
 };
