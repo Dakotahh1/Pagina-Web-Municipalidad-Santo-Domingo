@@ -560,8 +560,8 @@ Cada endpoint y middleware de control de accesos fue sometido a pruebas funciona
 | Nombre | Rol |
 |--------|-----|
 | Vicente Palma | Desarrollador Frontend y Backend, Documentación |
-| Diego Alvarado | Aquitectura y Diseño UI/UX, Desarrollador Frontend |
-| Ignacia Brahim | Documentación, Desarrolladora Backend, Aquitectura y Diseño UI/UX  |
+| Diego Alvarado | Arquitectura y Diseño UI/UX, Desarrollador Frontend |
+| Ignacia Brahim | Documentación, Desarrolladora Backend, Arquitectura y Diseño UI/UX  |
 
 ---
 
