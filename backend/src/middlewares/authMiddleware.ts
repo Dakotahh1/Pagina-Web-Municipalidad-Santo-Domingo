@@ -8,7 +8,7 @@ import { UserRole } from '../types/auth.types';
 //Si el token no es válido → corta la cadena y devuelve 401.
 //Si es válido → adjunta req.usuario y llama next().
 
-//Uso en rutas:
+//Uso en rutas:npx prisma migrate dev  
 //router.get('/ruta', verifyJWT, miController)
 // ─────────────────────────────────────────────────────────────────────────────
 

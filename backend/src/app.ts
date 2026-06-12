@@ -8,6 +8,7 @@ import adopcionesRoutes from './routes/adopcionesRoutes';
 import operativosRoutes from './routes/operativosRoutes';
 import foroRoutes from './routes/foroRoutes';
 import authRoutes from './routes/authRoutes';
+import uploadRoutes from './routes/uploadRoutes'; // ← NUEVO: firma de subida a Cloudinary
 
 import { errorHandler } from './middlewares/errorHandler';
 import { requestLogger } from './middlewares/requestLogger';
@@ -61,6 +62,7 @@ app.use('/api/reportes', reportesRoutes);
 app.use('/api/adopciones', adopcionesRoutes);
 app.use('/api/operativos', operativosRoutes);
 app.use('/api/foro', foroRoutes);
+app.use('/api/uploads', uploadRoutes); // ← NUEVO: firma de subida a Cloudinary
 
 // 404 — cualquier ruta no registrada cae aquí
 app.use((_req: Request, res: Response) => {
