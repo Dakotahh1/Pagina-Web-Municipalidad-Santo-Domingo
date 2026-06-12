@@ -1,0 +1,77 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# DOCKER COMPOSE — Sistema de Gestión de Bienestar Animal
+# Municipalidad de Santo Domingo — Comuna Parque
+#
+# Servicios orquestados:
+#   postgres  → Base de datos PostgreSQL
+#   backend   → API REST Node/Express/TypeScript/Prisma (puerto 3001)
+#   frontend  → App Ionic/React servida con Nginx (puerto 8100)
+#
+# Uso:
+#   docker compose up --build      ← primera vez o tras cambios
+#   docker compose up              ← arranque normal
+#   docker compose down            ← detener todo
+#   docker compose down -v         ← detener y borrar datos de la BD
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── BASE DE DATOS ────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: bienestar_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-bienestar_animal}
+    ports:
+      - "5432:5432"       # expuesto para conectarse con pgAdmin local si se necesita
+    volumes:
+      - postgres_data:/var/lib/postgresql/data   # los datos persisten aunque se reinicie
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-bienestar_animal}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── BACKEND ──────────────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend        # carpeta donde está el Dockerfile del backend
+      dockerfile: Dockerfile
+    container_name: bienestar_backend
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      # IMPORTANTE: en Docker el host de la BD es "postgres" (nombre del servicio),
+      # NO "localhost". Esa es la diferencia clave respecto al desarrollo local.
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-bienestar_animal}?schema=public
+      JWT_SECRET: ${JWT_SECRET:-bienestar_animal_muni_sd_dev_secret_2025}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8100}
+    depends_on:
+      postgres:
+        condition: service_healthy   # espera a que PostgreSQL esté listo antes de arrancar
+
+  # ── FRONTEND ─────────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bienestar_frontend
+    restart: unless-stopped
+    ports:
+      - "8100:80"               # mapeamos 8100 (puerto Ionic) al 80 de Nginx
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:3001}
+    depends_on:
+      - backend                 # espera a que el backend esté corriendo
+
+# ── VOLÚMENES ─────────────────────────────────────────────────────────────────
+volumes:
+  postgres_data:
+    name: bienestar_animal_postgres_data

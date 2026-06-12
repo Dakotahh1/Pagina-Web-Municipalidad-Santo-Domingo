@@ -1,0 +1,41 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# .dockerignore — raíz del proyecto (junto al docker-compose.yml)
+# Excluye archivos innecesarios del contexto de build de Docker.
+# Reduce el tamaño del contexto y evita filtrar información sensible.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Dependencias (se reinstalan dentro del contenedor)
+node_modules
+backend/node_modules
+
+# Archivos de build locales
+dist
+backend/dist
+
+# Variables de entorno reales (solo se usa .env.docker como template)
+.env
+backend/.env
+
+# Archivos de control de versiones
+.git
+.gitignore
+
+# Logs
+*.log
+npm-debug.log*
+
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db
+
+# Archivos de editor
+.vscode
+.idea
+
+# Prisma — no incluir la BD SQLite local si existe
+*.db
+*.db-journal
+
+# Cypress y tests
+cypress
+coverage
