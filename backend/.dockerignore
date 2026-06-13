@@ -1,0 +1,9 @@
+# Excluye archivos del contexto de build del backend.
+# Evita sobrescribir el node_modules del contenedor con binarios del host y
+# previene filtrar el .env (secretos) dentro de la imagen.
+
+node_modules
+dist
+.env
+*.log
+.DS_Store

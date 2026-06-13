@@ -116,7 +116,7 @@ export async function deleteCloudinaryImage(publicId: string): Promise<boolean> 
     body: body.toString(),
   });
 
-  const data = await response.json();
+  const data = (await response.json()) as { result?: string };
   return data.result === 'ok';
 }
 

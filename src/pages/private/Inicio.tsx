@@ -48,8 +48,7 @@ const Inicio: React.FC = () => {
     { valor: '96%', label: 'Casos gestionados'     },
   ];
 
-  /*accesos rápidos a las secciones más usadas de la plataforma.
-    TODO: las descripciones aún tienen texto placeholder; actualizar con el texto real de cada sección*/
+  /*accesos rápidos a las secciones más usadas de la plataforma.*/
   const accesosRapidos = [
     { titulo: 'Dar en Adopción',    desc: 'Registra a tu mascota para que pueda encontrar un nuevo hogar.', ruta: '/app/adopciones' },
     { titulo: 'Mapa de Reportes',   desc: 'Revisa el mapa de calor de incidentes reportados en la comuna.', ruta: '/app/mapa'       },

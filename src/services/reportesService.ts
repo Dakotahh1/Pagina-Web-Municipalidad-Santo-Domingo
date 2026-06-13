@@ -20,12 +20,14 @@ export interface Reporte {
   usuario?: { nombre_completo: string; correo: string };
 }
 
-/* Cuerpo para crear un nuevo reporte. */
+/* Cuerpo para crear un nuevo reporte. `fotos` contiene las URLs públicas
+   devueltas por Cloudinary (ver uploadService — EF5). */
 export interface NuevoReporte {
   tipo: string;
   descripcion: string;
   ubicacion: { lat: number; lng: number; sector: string };
   urgente?: boolean;
+  fotos?: string[];
 }
 
 /* GET /api/reportes — listado completo (funcionario/inspector). */

@@ -1,80 +1,43 @@
-/**
- * ImageUploader.tsx
- * ───────────────────
- * Componente reutilizable de Ionic/React para seleccionar y subir
- * imágenes a Cloudinary mediante uploadService.
- *
- * Uso:
- *   <ImageUploader
- *     folder="animales"
- *     onUploaded={(url) => setImagenes([...imagenes, url])}
- *   />
- *
- * Requiere que el AuthContext exponga el token JWT del usuario.
- */
-
 import React, { useRef, useState } from 'react';
-import {
-  IonButton,
-  IonIcon,
-  IonProgressBar,
-  IonThumbnail,
-  IonImg,
-  IonText,
-} from '@ionic/react';
+import { IonButton, IonIcon, IonProgressBar, IonText } from '@ionic/react';
 import { cloudUploadOutline, closeCircle } from 'ionicons/icons';
-import { uploadImage, UploadFolder } from '../services/uploadService';
-import { useAuth } from '../context/AuthContext'; // ajusta la ruta según tu proyecto
+import { uploadImagen, UploadFolder } from '../services/uploadService';
+import { ApiError } from '../services/api';
+
+/* Componente reutilizable para seleccionar y subir una imagen a Cloudinary (EF5).
+   Muestra una vista previa local inmediata, una barra de progreso durante la
+   subida y notifica la URL pública resultante mediante `onUploaded`. */
 
 interface ImageUploaderProps {
   folder: UploadFolder;
-  /** Se llama con la URL pública cuando la subida termina con éxito */
+  /* Se invoca con la URL pública cuando la subida termina con éxito. */
   onUploaded: (url: string) => void;
-  /** Texto del botón (opcional) */
   label?: string;
 }
 
-export const ImageUploader: React.FC<ImageUploaderProps> = ({
-  folder,
-  onUploaded,
-  label = 'Subir foto',
-}) => {
-  const { token } = useAuth(); // asume que AuthContext expone { token }
+const ImageUploader: React.FC<ImageUploaderProps> = ({ folder, onUploaded, label = 'Subir foto' }) => {
   const inputRef = useRef<HTMLInputElement>(null);
-
-  const [preview, setPreview]   = useState<string | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
-  const [error, setError]       = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     setError(null);
 
-    // Validación básica en el cliente
-    if (!file.type.startsWith('image/')) {
-      setError('El archivo debe ser una imagen');
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) { // 10 MB
-      setError('La imagen no debe superar los 10 MB');
-      return;
-    }
+    // Validación en el cliente antes de gastar ancho de banda.
+    if (!file.type.startsWith('image/')) { setError('El archivo debe ser una imagen.'); return; }
+    if (file.size > 10 * 1024 * 1024) { setError('La imagen no debe superar los 10 MB.'); return; }
 
-    // Preview local inmediato
     setPreview(URL.createObjectURL(file));
     setProgress(0);
-
     try {
-      if (!token) throw new Error('Debes iniciar sesión para subir imágenes');
-
-      const url = await uploadImage(file, folder, token, setProgress);
+      const url = await uploadImagen(file, folder, setProgress);
       onUploaded(url);
       setProgress(null);
     } catch (err) {
-      console.error('[ImageUploader] Error subiendo imagen:', err);
-      setError('No se pudo subir la imagen. Intenta nuevamente.');
+      setError(err instanceof ApiError ? err.message : 'No se pudo subir la imagen. Intenta nuevamente.');
       setProgress(null);
       setPreview(null);
     }
@@ -93,7 +56,6 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
         ref={inputRef}
         type="file"
         accept="image/*"
-        capture="environment"
         style={{ display: 'none' }}
         onChange={handleFileSelect}
       />
@@ -106,20 +68,20 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
       )}
 
       {preview && (
-        <div style={{ position: 'relative' }}>
-          <IonThumbnail style={{ width: '100%', height: '160px' }}>
-            <IonImg src={preview} />
-          </IonThumbnail>
+        <div style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden' }}>
+          <img src={preview} alt="Vista previa" style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', display: 'block' }} />
 
           {progress !== null && progress < 100 && (
-            <IonProgressBar value={progress / 100} />
+            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
+              <IonProgressBar value={progress / 100} />
+            </div>
           )}
 
           {progress === null && (
             <IonButton
               fill="clear"
               size="small"
-              style={{ position: 'absolute', top: 0, right: 0 }}
+              style={{ position: 'absolute', top: '4px', right: '4px', '--padding-start': '4px', '--padding-end': '4px' }}
               onClick={handleClear}
             >
               <IonIcon icon={closeCircle} slot="icon-only" color="danger" />
@@ -136,3 +98,5 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
     </div>
   );
 };
+
+export default ImageUploader;

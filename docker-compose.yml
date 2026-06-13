@@ -53,6 +53,11 @@ services:
       JWT_SECRET: ${JWT_SECRET:-bienestar_animal_muni_sd_dev_secret_2025}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8100}
+      # Credenciales de Cloudinary (EF5 — subida de imágenes). Opcionales: si no se
+      # definen, la app funciona igual pero sin subida de fotos.
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
     depends_on:
       postgres:
         condition: service_healthy   # espera a que PostgreSQL esté listo antes de arrancar
@@ -66,8 +71,8 @@ services:
     restart: unless-stopped
     ports:
       - "8100:80"               # mapeamos 8100 (puerto Ionic) al 80 de Nginx
-    environment:
-      VITE_API_URL: ${VITE_API_URL:-http://localhost:3001}
+    # La URL de la API se fija en build (VITE_API_URL=/api en el Dockerfile);
+    # Nginx reenvía /api al backend, por eso aquí no se pasa en runtime.
     depends_on:
       - backend                 # espera a que el backend esté corriendo
 

@@ -1,26 +1,13 @@
-/**
- * uploadService.ts
- * ──────────────────
- * Servicio frontend para subir imágenes directamente a Cloudinary
- * usando el flujo de "signed upload".
- *
- * Flujo:
- *   1. uploadImage(file, 'animales') hace lo siguiente internamente:
- *      a) GET /api/uploads/signature?folder=animales  → obtiene firma del backend
- *      b) POST directo a Cloudinary con el archivo + firma
- *      c) Devuelve la URL pública de la imagen subida
- *
- * Uso típico en un formulario:
- *
- *   const url = await uploadImage(file, 'animales');
- *   // luego al guardar el animal:
- *   await api.patch(`/animales/${id}`, { imagenes: [...imagenesActuales, url] });
- */
+/* Servicio de subida de imágenes a Cloudinary (EF5 — integración con API de terceros).
 
-import axios from 'axios';
+   Estrategia "signed upload": el backend firma la subida con su API_SECRET (que nunca
+   viaja al cliente) y el archivo va directo del navegador a Cloudinary, sin pasar por
+   nuestro servidor. El flujo es:
+     1. GET /api/uploads/signature?folder=...  → el backend devuelve la firma.
+     2. POST del archivo directo a Cloudinary con esa firma.
+     3. Se devuelve la URL pública (https) de la imagen ya alojada. */
 
-// Ajusta esta URL base según tu configuración de servicios existente
-const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001/api';
+import { apiRequest } from './api';
 
 export type UploadFolder = 'animales' | 'reportes';
 
@@ -33,77 +20,44 @@ interface SignedUploadParams {
   uploadUrl: string;
 }
 
-interface ApiResponse<T> {
-  success: boolean;
-  data: T;
-  message?: string;
-}
-
-interface CloudinaryUploadResponse {
+interface CloudinaryResponse {
   secure_url: string;
   public_id: string;
-  [key: string]: unknown;
 }
 
-/**
- * Sube una imagen a Cloudinary y devuelve su URL pública (HTTPS).
- *
- * @param file    Archivo a subir (de un <input type="file"> o cámara de Ionic)
- * @param folder  'animales' o 'reportes'
- * @param token   JWT del usuario (para autenticar el pedido de firma)
- * @param onProgress  callback opcional con el % de progreso (0-100)
- */
-export async function uploadImage(
+/* Sube un archivo a Cloudinary y devuelve su URL pública.
+   `onProgress` recibe el porcentaje (0-100) durante la subida. El token JWT lo
+   inyecta automáticamente apiRequest al pedir la firma. */
+export async function uploadImagen(
   file: File | Blob,
   folder: UploadFolder,
-  token: string,
   onProgress?: (percent: number) => void,
 ): Promise<string> {
+  // 1. Firma del backend (requiere sesión iniciada).
+  const params = await apiRequest<SignedUploadParams>(`/uploads/signature?folder=${folder}`);
 
-  // 1. Pedir firma al backend
-  const { data: signatureResponse } = await axios.get<ApiResponse<SignedUploadParams>>(
-    `${API_BASE_URL}/uploads/signature`,
-    {
-      params: { folder },
-      headers: { Authorization: `Bearer ${token}` },
-    },
-  );
-
-  const { cloudName, apiKey, timestamp, signature, uploadUrl } = signatureResponse.data;
-
-  // 2. Subir directo a Cloudinary
+  // 2. Subida directa a Cloudinary. Se usa XMLHttpRequest para poder reportar el
+  //    progreso de la carga, algo que fetch no expone de forma nativa.
   const formData = new FormData();
   formData.append('file', file);
-  formData.append('api_key', apiKey);
-  formData.append('timestamp', String(timestamp));
-  formData.append('signature', signature);
-  formData.append('folder', folder);
+  formData.append('api_key', params.apiKey);
+  formData.append('timestamp', String(params.timestamp));
+  formData.append('signature', params.signature);
+  formData.append('folder', params.folder);
 
-  const { data: cloudinaryResponse } = await axios.post<CloudinaryUploadResponse>(
-    uploadUrl,
-    formData,
-    {
-      headers: { 'Content-Type': 'multipart/form-data' },
-      onUploadProgress: (event) => {
-        if (onProgress && event.total) {
-          const percent = Math.round((event.loaded * 100) / event.total);
-          onProgress(percent);
-        }
-      },
-    },
-  );
+  const respuesta = await new Promise<CloudinaryResponse>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', params.uploadUrl);
+    xhr.upload.onprogress = (e) => {
+      if (onProgress && e.lengthComputable) onProgress(Math.round((e.loaded * 100) / e.total));
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve(JSON.parse(xhr.responseText));
+      else reject(new Error('La subida de la imagen a Cloudinary falló.'));
+    };
+    xhr.onerror = () => reject(new Error('Error de red al subir la imagen.'));
+    xhr.send(formData);
+  });
 
-  // 3. Devolver la URL segura (https) de la imagen
-  return cloudinaryResponse.secure_url;
-}
-
-/**
- * Sube múltiples imágenes en paralelo y devuelve sus URLs en el mismo orden.
- */
-export async function uploadMultipleImages(
-  files: (File | Blob)[],
-  folder: UploadFolder,
-  token: string,
-): Promise<string[]> {
-  return Promise.all(files.map((file) => uploadImage(file, folder, token)));
+  return respuesta.secure_url;
 }

@@ -1,7 +1,8 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { IonPage, IonContent } from '@ionic/react';
 import NavBar from '../../components/NavBar';
 import RevealWrapper from '../../components/RevealWrapper';
+import ImageUploader from '../../components/ImageUploader';
 import { crearReporte } from '../../services/reportesService';
 import { ApiError } from '../../services/api';
 import { useNotifications } from '../../context/useNotifications';
@@ -53,9 +54,8 @@ const ReportarIncidente: React.FC = () => {
   const setField = <K extends keyof ReporteForm>(campo: K, valor: ReporteForm[K]) =>
     setForm((prev) => ({ ...prev, [campo]: valor }));
 
-  // Imagen adjunta (no se persiste el base64 por su tamaño).
-  const [imagenPreview, setImagenPreview] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // URL pública de la foto del incidente, ya alojada en Cloudinary (EF5).
+  const [fotoUrl, setFotoUrl] = useState<string | null>(null);
 
   const [errores, setErrores] = useState<{ direccion?: string; descripcion?: string }>({});
   const [enviando, setEnviando] = useState(false);
@@ -95,15 +95,6 @@ const ReportarIncidente: React.FC = () => {
     '4. Recibes una notificación del resultado',
   ];
 
-  const handleImagenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => setImagenPreview(reader.result as string);
-      reader.readAsDataURL(file);
-    }
-  };
-
   // Valida y envía el reporte al backend.
   const handleEnviar = async () => {
     const nuevosErrores: { direccion?: string; descripcion?: string } = {};
@@ -129,14 +120,14 @@ const ReportarIncidente: React.FC = () => {
         descripcion,
         ubicacion: { ...COORD_SANTO_DOMINGO, sector },
         urgente: form.urgente,
+        fotos: fotoUrl ? [fotoUrl] : [],
       });
 
       notify('Reporte enviado', `Caso #${reporte.id} registrado. Un inspector lo revisará.`, 'success');
 
       // Limpia el borrador y resetea el formulario.
       setForm(DRAFT_INICIAL);
-      setImagenPreview(null);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      setFotoUrl(null);
     } catch (err) {
       notify('No se pudo enviar', err instanceof ApiError ? err.message : 'Error de conexión con el servidor', 'error');
     } finally {
@@ -254,33 +245,16 @@ const ReportarIncidente: React.FC = () => {
                     </div>
                   </div>
 
-                  {/*zona de carga de imagen del incidente*/}
+                  {/*subida real de la foto del incidente a Cloudinary (EF5).
+                    La foto es opcional: si Cloudinary no está configurado, el
+                    reporte se envía igualmente sin imagen.*/}
                   <div>
-                    <label style={labelStyle}>Adjuntar imagen del incidente</label>
-                    <div
-                      onClick={() => fileInputRef.current?.click()}
-                      style={{ border: '2px dashed #d1d5db', borderRadius: '8px', padding: '20px', textAlign: 'center', cursor: 'pointer', backgroundColor: '#f9fafb', transition: 'border-color 0.15s ease' }}
-                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#9ca3af'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#d1d5db'; }}
-                    >
-                      {imagenPreview ? (
-                        <img src={imagenPreview} alt="Vista previa" style={{ maxHeight: '180px', maxWidth: '100%', borderRadius: '6px', objectFit: 'contain' }} />
-                      ) : (
-                        <div>
-                          <div style={{ fontSize: '28px', marginBottom: '8px' }}>📷</div>
-                          <p style={{ fontFamily: serif, fontSize: '13px', color: '#6b7280', margin: '0 0 4px 0' }}>Haz clic para seleccionar una imagen</p>
-                          <p style={{ fontFamily: serif, fontSize: '11px', color: '#9ca3af', margin: 0 }}>PNG, JPG o WEBP · Máx. 10 MB</p>
-                        </div>
-                      )}
-                    </div>
-                    <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImagenChange} style={{ display: 'none' }} />
-                    {imagenPreview && (
-                      <button
-                        onClick={() => { setImagenPreview(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
-                        style={{ marginTop: '8px', background: 'none', border: 'none', fontFamily: serif, fontSize: '12px', color: '#b01717', cursor: 'pointer', padding: 0 }}
-                      >
-                        Eliminar imagen
-                      </button>
+                    <label style={labelStyle}>Adjuntar imagen del incidente (opcional)</label>
+                    <ImageUploader folder="reportes" label="Seleccionar imagen" onUploaded={setFotoUrl} />
+                    {fotoUrl && (
+                      <p style={{ fontFamily: serif, fontSize: '12px', color: '#16a34a', margin: '6px 0 0 0' }}>
+                        ✓ Imagen adjuntada correctamente
+                      </p>
                     )}
                   </div>
                 </div>

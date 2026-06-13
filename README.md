@@ -19,6 +19,9 @@ Esta aplicación es una plataforma desarrollada para la Municipalidad de Santo D
 | Backend | Node.js + Express + TypeScript |
 | Base de datos / ORM | PostgreSQL + Prisma |
 | Autenticación | JWT (`jsonwebtoken`) + bcrypt |
+| Seguridad | helmet + express-rate-limit |
+| Almacenamiento de imágenes | Cloudinary (API de terceros) |
+| Despliegue | Docker + docker-compose |
 | Pruebas de API | Postman |
 
 ## Requisitos e Instalación
@@ -552,6 +555,34 @@ Cada endpoint y middleware de control de accesos fue sometido a pruebas funciona
 - **CORS seguro:** *whitelist* de orígenes configurable por variable de entorno.
 - **Inyección SQL:** consultas parametrizadas mediante Prisma ORM.
 - **Datos sensibles:** contraseñas con *hash* bcrypt (10 *salt rounds*).
+
+## EF 4: Optimización de Consultas y Eficiencia de Respuesta
+
+- **Caché en memoria con TTL** (`cacheMiddleware`): las lecturas frecuentes —animales y operativos (públicas) y reportes— se sirven desde caché; el header `X-Cache` indica `HIT`/`MISS`. El caché se **invalida automáticamente** tras cada `POST`/`PATCH`/`DELETE`, evitando servir datos obsoletos.
+- **Paginación** (`?page` y `?limit`) en los listados de reportes y operativos, con metadata de navegación (`total`, `pages`).
+- **Consultas eficientes:** `select` explícito en el listado de reportes (no trae la descripción completa), filtros por *query param* y mutaciones en una sola consulta —sin doble lectura— mapeando el error `P2025` de Prisma a un `404`.
+
+## EF 5: Integración con Servicio Externo (Cloudinary)
+
+- **Cloudinary** (API de terceros) para el almacenamiento de imágenes, integrado en el flujo real de **reportar un incidente**: la foto se sube y su URL queda guardada en la base de datos junto al reporte.
+- **Estrategia *signed upload*:** el backend firma la subida con su `API_SECRET` (que nunca viaja al cliente) y el archivo va directo del navegador a Cloudinary, sin pasar por el servidor. El endpoint de firma exige sesión iniciada y valida la carpeta destino (`animales` / `reportes`).
+- **Manejo de errores:** si las credenciales no están configuradas, el endpoint responde `503` y la app sigue funcionando (la foto es opcional).
+- **Configuración:** variables `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` y `CLOUDINARY_API_SECRET` (gratis en [cloudinary.com](https://cloudinary.com)). Ver `backend/.env.example`.
+
+## EF 6: Despliegue Local con Docker
+
+Todo el sistema (PostgreSQL + backend + frontend) se levanta con un único comando. Solo se requiere **Docker Desktop**:
+
+```bash
+docker compose up --build
+```
+
+Orquesta tres servicios:
+- **postgres** — base de datos con *healthcheck* y volumen persistente.
+- **backend** — API que, al arrancar, aplica las migraciones y carga los datos de prueba (*seed* idempotente).
+- **frontend** — app compilada y servida por Nginx, que además reenvía `/api` al backend (sin CORS ni dependencia del puerto).
+
+Luego abre **http://localhost:8100** y entra con los usuarios de prueba. Para detener: `docker compose down` (añade `-v` para borrar también los datos de la BD).
 
 ---
 
